@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lego Blocks Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/lego-settings.css" />
+</head>
+<body>
+  <!-- Themed fixed background for this page -->
+  <div class="bg-fixed bg-lego"></div>
+
+  <!-- NAVBAR (same as index) -->
+  <header class="nav-wrap container">
+    <div class="nav panel">
+      <div class="brand">
+        <img class="brand-logo" src="./assets/images/ey.png" alt="EY Logo" />
+        <span>GDS Consulting Visit Lego Blocks</span>
+      </div>
+      <ul class="menu">
+        <li><a href="index.html#home">Home</a></li>
+        <li>
+          <a href="#settings" id="menuSettings">Settings ▾</a>
+          <ul class="submenu">
+            <li>
+              <a href="lego-blocks.html" id="menuLegoBlocks" role="menuitem" style="display:block;padding:10px 12px;border-radius:8px">
+                Lego Blocks
+              </a>
+            </li>
+            
+          </ul>
+        </li>
+        <li><a href="index.html#contact">Contact Us</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Page content (hidden until login) -->
+  <div id="app" style="display:none">
+    <main class="wrap" id="settings">
+      <!-- Top canvas -->
+      <section class="panel hero hero-tight">
+        <h1>Lego Blocks Settings</h1>
+        <p>Manage records, tiers, links, and attachments for your visit building blocks.</p>
+        <div class="toolbar row-actions">
+          <input id="search" type="text" placeholder="Search records…" />
+        </div>
+      </section>
+
+      <!-- Records canvas -->
+      <section class="panel adv">
+        <div class="records-head">
+          <div class="left">
+            <div class="card-title">Records</div>
+            <button class="btn btn-cta" id="openAddBtn">+ Add record</button>
+          </div>
+          <div class="right tiny-links">
+            <a href="#" id="exportLink">Export</a>
+            <a href="#" id="importLink">Import</a>
+            <a href="#" id="clearAllLink">Clear All</a>
+            <span class="count" id="countPill">0 records</span>
+            <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none" />
+          </div>
+        </div>
+
+        <div class="card-body glass-inner">
+          <div class="table-wrap">
+            <table id="dataTable" aria-describedby="countPill">
+              <thead>
+              <tr>
+                <th class="cat">Category</th>
+                <th class="phase">Phase</th>
+                <th class="activity">Activity</th>
+                <th class="outcome">Key Outcome / Key Message</th>
+                <th class="tier-col">T1</th>
+                <th class="tier-col">T1.1</th>
+                <th class="tier-col">T1.2</th>
+                <th class="tier-col">T2</th>
+                <th class="tier-col">T2.1</th>
+                <th class="tier-col">T3</th>
+                <th class="tier-col">T3.1</th>
+                <th class="tier-col">T3.2</th>
+                <th class="actions">Actions</th>
+              </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="muted" style="margin-top:12px">
+            Tip: You can download/upload multiple records at once. To upload, download this
+            <a href="#" id="templateCsvLink">Import template.csv</a>
+            and import using the links above.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Admin login -->
+  <div id="gate" class="gate" aria-hidden="false">
+    <div class="gate-card panel">
+      <div class="gate-header">
+        <h2>Admin Sign-in</h2>
+        <p class="muted">Enter your credentials to manage Lego Blocks settings.</p>
+      </div>
+      <div class="gate-form">
+        <div class="field">
+          <label for="gateUser">Username</label>
+          <input id="gateUser" type="text" placeholder="Username" autocomplete="username" autofocus />
+        </div>
+        <div class="field">
+          <label for="gatePass">Password</label>
+          <input id="gatePass" type="password" placeholder="Password" autocomplete="current-password" />
+        </div>
+        <div class="actions">
+          <button class="btn btn-cta" id="gateEnter">Enter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILS modal -->
+  <div class="modal-overlay" id="detailsOverlay" aria-hidden="true">
+    <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="detailsTitle">Record Details</div>
+        <button class="btn btn-ghost" id="closeDetailsBtn">Close</button>
+      </div>
+      <div class="modal-body"><div id="detailsBody"></div></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="detailsEditBtn">Edit</button>
+        <button class="btn btn-danger" id="detailsDeleteBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit modal -->
+  <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
+    <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Add Record</div>
+        <button class="btn btn-ghost" id="closeModalBtn">Close</button>
+      </div>
+
+      <form id="recordForm">
+        <input type="hidden" id="recordId" />
+        <div class="modal-body">
+          <div class="section">
+            <div class="section-title">Core Details</div>
+            <div class="grid-3">
+              <div>
+                <label>Category<span class="req">*</span></label>
+                <select id="category" required>
+                  <option value="">— Select —</option>
+                  <option>Preparation</option><option>Presentation</option><option>Group Meet</option>
+                  <option>Experience</option><option>Collaboration</option><option>Post Event</option>
+                </select>
+              </div>
+              <div>
+                <label>Phase<span class="req">*</span></label>
+                <select id="phase" required>
+                  <option value="">— Select —</option>
+                  <option>PRE</option><option>DURING</option><option>POST</option>
+                </select>
+              </div>
+              <div>
+                <label>Activity<span class="req">*</span></label>
+                <input type="text" id="activity" placeholder="e.g., Welcome & Registration" required />
+              </div>
+              <div style="grid-column:1/-1">
+                <label>Key Outcome / Key Message<span class="req">*</span></label>
+                <textarea id="outcome" placeholder="What success looks like / key talking points" required></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Ownership</div>
+            <div class="grid-3">
+              <div>
+                <label>Presentation Owner</label>
+                <input type="text" id="presentationOwner" placeholder="Name / team" />
+              </div>
+              <div>
+                <label>Content Owner</label>
+                <input type="text" id="contentOwner" placeholder="Name / team" />
+              </div>
+              <div style="grid-column:1/-1">
+                <label>Notes</label>
+                <textarea id="notes" placeholder="Internal notes or reminders"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Tiers<span class="req"> *</span></div>
+            <div class="tier-grid">
+              <div><label>Tier 1</label><select class="tier" id="tier_1" required></select></div>
+              <div><label>Tier 1.1</label><select class="tier" id="tier_1_1" required></select></div>
+              <div><label>Tier 1.2</label><select class="tier" id="tier_1_2" required></select></div>
+              <div><label>Tier 2</label><select class="tier" id="tier_2" required></select></div>
+              <div><label>Tier 2.1</label><select class="tier" id="tier_2_1" required></select></div>
+              <div><label>Tier 3</label><select class="tier" id="tier_3" required></select></div>
+              <div><label>Tier 3.1</label><select class="tier" id="tier_3_1" required></select></div>
+              <div><label>Tier 3.2</label><select class="tier" id="tier_3_2" required></select></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">URL / Links</div>
+            <div id="linksContainer" class="links-container"></div>
+            <div><button type="button" class="btn btn-ghost btn-sm" id="addLinkBtn">+ Add Link</button></div>
+            <div class="muted">Label is what appears in the list.</div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="resetBtn">Reset</button>
+          <button type="button" class="btn btn-danger" id="editDeleteBtn" style="display:none">Delete</button>
+          <button type="submit" class="btn btn-cta" id="submitBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="assets/js/script.js"></script>
+<script src="../assets/js/storage-xml-github.js"></script>
+  <script src="assets/js/lego-settings.js"></script>
+</body>
+</html>
