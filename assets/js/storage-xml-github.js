@@ -5,8 +5,8 @@
    Repo: XE082005777_EYGS/CNSLegoBlocks (branch: main)
 */
 
-const OWNER  = 'XE082005777_EYGS';
-const REPO   = 'CNSLegoBlocks';
+const OWNER  = 'markcolobong';
+const REPO   = 'cnslegoblocks';
 const BRANCH = 'main';
 const FILE_PATH = 'data/records.xml';
 
@@ -184,3 +184,4 @@ function buildXml(records){
 
 // minimal escaper used when querying attributes in DOM
 function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
+
