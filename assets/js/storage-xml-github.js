@@ -1,30 +1,19 @@
-/* assets/js/storage-xml-github.js
-   XML "database" stored at data/records.xml in your GitHub repo.
-   - Private/public read via GitHub Contents API when a token is set
-   - Public read fallback via raw.githubusercontent.com when no token
-   - Admin write via GitHub Contents API (requires a PAT with repo Contents: write)
-   Repo: XE082005777_EYGS/CNSLegoBlocks (branch: main)
-*/
-
-// TOP OF FILE
-const OWNER  = 'markcolobong';      // <-- your username (not XE082005777_EYGS)
-const REPO   = 'cnslegoblocks';     // <-- exact repo name (case-insensitive, but match it)
-const BRANCH = 'main';              // change to 'master' if your default branch is master
+// XML "database" stored at data/records.xml in your GitHub repo
+const OWNER  = 'markcolobong';
+const REPO   = 'cnslegoblocks';
+const BRANCH = 'main';
 const FILE_PATH = 'data/records.xml';
-
 
 const RAW_URL      = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}`;
 const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`;
 
-let GITHUB_TOKEN = null; // set after admin login (prompt once per session)
+let GITHUB_TOKEN = null; // set after admin login
 
-/* -------------------- Public API -------------------- */
 var XmlGitHubStorage = {
   setToken(token){ GITHUB_TOKEN = (token || '').trim() || null; },
 
   async load(){
     try{
-      // Prefer Contents API when a token is available (works for private & public)
       if (GITHUB_TOKEN) {
         const res = await fetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, {
           method: 'GET',
@@ -34,26 +23,16 @@ var XmlGitHubStorage = {
             'X-GitHub-Api-Version': '2022-11-28'
           }
         });
-
-        if (res.status === 404) return []; // file not created yet
-        if (!res.ok) {
-          // fall back to empty to avoid breaking UI
-          return [];
-        }
-
+        if (res.status === 404) return [];
+        if (!res.ok) return [];
         const json = await res.json();
         const xmlText = decodeBase64Utf8(json.content || '');
         return parseXmlToRecords(xmlText);
       }
-
-      // No token → public RAW (only works for public repos)
       const res = await fetch(RAW_URL, { cache: 'no-store' });
-      if(!res.ok){
-        return [];
-      }
+      if(!res.ok) return [];
       const text = await res.text();
       return parseXmlToRecords(text);
-
     }catch{
       return [];
     }
@@ -77,11 +56,9 @@ var XmlGitHubStorage = {
   }
 };
 
-/* -------------------- Helpers: GitHub PUT -------------------- */
 async function saveAllToGitHub(records, message){
   if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
-  // 1) fetch current file SHA (required to update if file exists)
   let sha = null;
   const metaRes = await fetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, {
     method: 'GET',
@@ -100,12 +77,9 @@ async function saveAllToGitHub(records, message){
     throw new Error('Failed reading file metadata: ' + t);
   }
 
-  // 2) build XML
   const xml = buildXml(records);
-  // Proper UTF-8 → base64
   const content = base64EncodeUtf8(xml);
 
-  // 3) commit
   const putRes = await fetch(CONTENTS_URL, {
     method: 'PUT',
     headers: {
@@ -117,7 +91,7 @@ async function saveAllToGitHub(records, message){
     body: JSON.stringify({
       message: message || 'Update data/records.xml',
       content,
-      sha, // include to update; omit when creating first time
+      sha,
       branch: BRANCH
     })
   });
@@ -128,12 +102,10 @@ async function saveAllToGitHub(records, message){
   }
 }
 
-/* -------------------- Helpers: XML <-> JS -------------------- */
 function parseXmlToRecords(xmlText){
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
-  const parseErr = doc.querySelector('parsererror');
-  if (parseErr) return [];
+  if (doc.querySelector('parsererror')) return [];
   const root = doc.querySelector('Records');
   if (!root) return [];
 
@@ -215,30 +187,13 @@ function buildXml(records){
   return out;
 }
 
-// minimal escaper used when querying attributes in DOM
 function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
 
-/* -------------------- UTF-8 Base64 helpers -------------------- */
-// -> Base64 encode a UTF-8 string
-function base64EncodeUtf8(str){
-  return btoa(unescape(encodeURIComponent(str)));
-}
-// -> Base64 decode to a UTF-8 string
+function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
 function decodeBase64Utf8(b64){
-  try {
-    return decodeURIComponent(escape(atob(b64)));
-  } catch {
-    return '';
-  }
-}
-// expose globally (belt-and-suspenders)
-if (typeof window !== 'undefined') {
-  window.XmlGitHubStorage = XmlGitHubStorage;
+  try { return decodeURIComponent(escape(atob(b64))); }
+  catch { return ''; }
 }
 
-
-
-
-
-
-
+// expose globally
+if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
