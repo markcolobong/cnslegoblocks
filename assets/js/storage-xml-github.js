@@ -229,8 +229,11 @@ function decodeBase64Utf8(b64){
     return '';
   }
 }
+// expose globally
+if (typeof window !== 'undefined') {
+  window.XmlGitHubStorage = XmlGitHubStorage;
+}
 
-// Make available to other scripts loaded after this file
-window.XmlGitHubStorage = XmlGitHubStorage;
+
 
 
