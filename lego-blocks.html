@@ -260,5 +260,138 @@
       });
     })();
   </script>
+  <!-- ===== DEBUG/GLUE PATCH: add this AFTER your existing scripts ===== -->
+<script>
+(function(){
+  // --- config: must match storage-xml-github.js ---
+  const OWNER  = 'XE082005777_EYGS';   // <- change if your repo is under your personal username
+  const REPO   = 'CNSLegoBlocks';
+  const BRANCH = 'main';
+  const FILE_PATH = 'data/records.xml';
+
+  // Helper: quick uuid
+  function rid(){ return 'r_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+  // 1) Verify token on login and show the app
+  const enterBtn = document.getElementById('gateEnter');
+  enterBtn?.addEventListener('click', async () => {
+    const pat = (document.getElementById('gatePass')?.value || '').trim();
+    if (!pat){
+      alert('Paste your GitHub token in the Password field first.');
+      return;
+    }
+    if (!window.XmlGitHubStorage){
+      alert('XmlGitHubStorage not loaded. Check script path to assets/js/storage-xml-github.js');
+      return;
+    }
+    XmlGitHubStorage.setToken(pat);
+
+    // quick token sanity
+    const u = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${pat}` }
+    });
+    if (u.status !== 200){
+      alert('GitHub token invalid/expired (GET /user failed).');
+      return;
+    }
+
+    // test read access to repo (ok if 200 or 404)
+    const metaUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${encodeURIComponent(BRANCH)}`;
+    const meta = await fetch(metaUrl, {
+      headers: { Authorization: `Bearer ${pat}`, 'X-GitHub-Api-Version': '2022-11-28' }
+    });
+    if (meta.status === 403){
+      alert('Token lacks Contents: Read access or not enabled for repo. Recreate token with Contents: Read/Write.');
+      return;
+    }
+
+    // show app
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('app').style.display  = '';
+  });
+
+  // 2) Wire SAVE button → upsertOne(record) to GitHub
+  const form = document.getElementById('recordForm');
+  const submitBtn = document.getElementById('submitBtn');
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (!window.XmlGitHubStorage){
+      alert('XmlGitHubStorage not loaded.');
+      return;
+    }
+
+    // collect fields (matching your IDs)
+    const record = {
+      id: document.getElementById('recordId').value || rid(),
+      category: document.getElementById('category').value,
+      phase: document.getElementById('phase').value,
+      activity: document.getElementById('activity').value,
+      outcome: document.getElementById('outcome').value,
+      presentationOwner: document.getElementById('presentationOwner').value,
+      contentOwner: document.getElementById('contentOwner').value,
+      notes: document.getElementById('notes').value,
+      links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => {
+        return {
+          label: row.querySelector('.link-label')?.value || '',
+          url:   row.querySelector('.link-url')?.value   || ''
+        }
+      }),
+      tiers: {
+        tier_1:  document.getElementById('tier_1').value,
+        tier_1_1:document.getElementById('tier_1_1').value,
+        tier_1_2:document.getElementById('tier_1_2').value,
+        tier_2:  document.getElementById('tier_2').value,
+        tier_2_1:document.getElementById('tier_2_1').value,
+        tier_3:  document.getElementById('tier_3').value,
+        tier_3_1:document.getElementById('tier_3_1').value,
+        tier_3_2:document.getElementById('tier_3_2').value
+      }
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+    try{
+      await XmlGitHubStorage.upsertOne(record);  // <-- this triggers the PUT
+      alert('Saved to GitHub XML ✅');
+      // if your app has a refresh, call it:
+      if (window.LegoSettings?.refresh){ await LegoSettings.refresh(); }
+      // set id back (for next edit)
+      document.getElementById('recordId').value = record.id;
+    }catch(err){
+      console.error(err);
+      alert('Save failed: ' + (err?.message || err));
+    }finally{
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save';
+    }
+  });
+
+  // 3) Wire DELETE button → deleteOne(id)
+  const delBtn = document.getElementById('editDeleteBtn');
+  delBtn?.addEventListener('click', async () => {
+    const id = document.getElementById('recordId').value;
+    if (!id){ alert('No record id.'); return; }
+    if (!confirm('Delete this record?')) return;
+
+    try{
+      await XmlGitHubStorage.deleteOne(id);      // <-- this triggers the PUT (new file contents)
+      alert('Deleted from GitHub XML ✅');
+      if (window.LegoSettings?.refresh){ await LegoSettings.refresh(); }
+      // clear form
+      document.getElementById('recordForm').reset();
+      document.getElementById('recordId').value = '';
+    }catch(err){
+      console.error(err);
+      alert('Delete failed: ' + (err?.message || err));
+    }
+  });
+
+  // 4) (Optional) add minimal link-row selectors so links can be collected if present
+  // If your lego-settings.js already creates .link-row with .link-label/.link-url, this is not needed.
+})();
+</script>
+
 </body>
 </html>
+
