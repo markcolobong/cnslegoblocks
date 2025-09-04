@@ -6,10 +6,12 @@
    Repo: XE082005777_EYGS/CNSLegoBlocks (branch: main)
 */
 
-const OWNER  = 'markcolobong';
-const REPO   = 'cnslegoblocks';
-const BRANCH = 'main';
+// TOP OF FILE
+const OWNER  = 'markcolobong';      // <-- your username (not XE082005777_EYGS)
+const REPO   = 'cnslegoblocks';     // <-- exact repo name (case-insensitive, but match it)
+const BRANCH = 'main';              // change to 'master' if your default branch is master
 const FILE_PATH = 'data/records.xml';
+
 
 const RAW_URL      = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}`;
 const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`;
@@ -233,6 +235,7 @@ function decodeBase64Utf8(b64){
 if (typeof window !== 'undefined') {
   window.XmlGitHubStorage = XmlGitHubStorage;
 }
+
 
 
 
