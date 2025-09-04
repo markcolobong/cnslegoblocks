@@ -29,7 +29,6 @@
                 Lego Blocks
               </a>
             </li>
-            
           </ul>
         </li>
         <li><a href="index.html#contact">Contact Us</a></li>
@@ -104,7 +103,8 @@
     <div class="gate-card panel">
       <div class="gate-header">
         <h2>Admin Sign-in</h2>
-        <p class="muted">Enter your credentials to manage Lego Blocks settings.</p>
+        <p class="muted">Enter your credentials to manage Lego Blocks settings.<br>
+        <strong>Note:</strong> Paste your GitHub <em>Personal Access Token</em> in the Password field.</p>
       </div>
       <div class="gate-form">
         <div class="field">
@@ -112,8 +112,8 @@
           <input id="gateUser" type="text" placeholder="Username" autocomplete="username" autofocus />
         </div>
         <div class="field">
-          <label for="gatePass">Password</label>
-          <input id="gatePass" type="password" placeholder="Password" autocomplete="current-password" />
+          <label for="gatePass">Password (use your GitHub PAT)</label>
+          <input id="gatePass" type="password" placeholder="GitHub PAT" autocomplete="current-password" />
         </div>
         <div class="actions">
           <button class="btn btn-cta" id="gateEnter">Enter</button>
@@ -226,138 +226,39 @@
     </div>
   </div>
 
+  <!-- Your existing app scripts -->
   <script src="assets/js/script.js"></script>
-<script src="../assets/js/storage-xml-github.js"></script>
+
+  <!-- ✅ Correct path (no ../) -->
+  <script src="assets/js/storage-xml-github.js"></script>
+
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- GitHub Save Widget -->
-<section id="gh-save" style="margin:16px 0; padding:16px; border:1px solid #ddd; border-radius:12px;">
-  <h3 style="margin:0 0 8px;">Save Records to GitHub</h3>
+  <!-- ✅ Lightweight glue: set token on login and toggle UI -->
+  <script>
+    (function(){
+      const gate = document.getElementById('gate');
+      const app  = document.getElementById('app');
+      const enterBtn = document.getElementById('gateEnter');
 
-  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-    <input id="ghToken" type="password" placeholder="Paste GitHub PAT"
-           style="flex:1; min-width:260px; padding:8px 10px; border:1px solid #ccc; border-radius:8px;">
-    <button id="btnRemember" type="button">Remember (this session)</button>
-    <button id="btnLoad" type="button">Load current XML</button>
-    <button id="btnSave" type="button" style="background:#1f883d; color:#fff; border:0; padding:8px 14px; border-radius:8px;">
-      SAVE to /data/records.xml
-    </button>
-  </div>
-
-  <!-- Optional JSON editor fallback (used if you don't provide window.collectRecords) -->
-  <details style="margin-top:10px;">
-    <summary>Edit as JSON (fallback)</summary>
-    <p style="margin:8px 0 4px; color:#555;">If your page doesn’t define <code>window.collectRecords()</code>,
-       the SAVE button will read records from this JSON textbox.</p>
-    <textarea id="recordsJson" rows="12" style="width:100%; font-family:ui-monospace,Consolas,monospace; padding:10px; border:1px solid #ccc; border-radius:8px;">
-[
-  {
-    "id": "example-1",
-    "category": "Planning",
-    "phase": "Pre-Visit",
-    "activity": "Agenda Review",
-    "outcome": "Aligned agenda",
-    "presentationOwner": "Owner A",
-    "contentOwner": "Owner B",
-    "notes": "Sample note",
-    "links": [
-      {"label": "Deck", "url": "https://example.com/deck"}
-    ],
-    "tiers": {
-      "tier_1": "Applicable",
-      "tier_1_1": "Applicable",
-      "tier_1_2": "Applicable",
-      "tier_2": "Applicable",
-      "tier_2_1": "Applicable",
-      "tier_3": "Applicable",
-      "tier_3_1": "Applicable",
-      "tier_3_2": "Applicable"
-    }
-  }
-]
-    </textarea>
-  </details>
-
-  <div id="ghStatus" style="margin-top:10px; font-size:14px; color:#555;"></div>
-</section>
-
-<script>
-  (function(){
-    const $ = (sel) => document.querySelector(sel);
-    const $token = $('#ghToken');
-    const $status = $('#ghStatus');
-    const $json = $('#recordsJson');
-
-    // Prefill token if remembered in this browser session
-    const saved = sessionStorage.getItem('lego_gh_pat');
-    if (saved) $token.value = saved;
-
-    function setStatus(msg, good){
-      $status.textContent = msg || '';
-      $status.style.color = good ? '#1f883d' : '#a40e26';
-    }
-
-    // Remember token for the current browser tab session
-    $('#btnRemember').addEventListener('click', () => {
-      const t = ($token.value || '').trim();
-      if (!t) { setStatus('Please paste a PAT first.', false); return; }
-      sessionStorage.setItem('lego_gh_pat', t);
-      setStatus('PAT stored for this session.', true);
-    });
-
-    // Load current XML (shows parsed records in JSON box, if you want to inspect)
-    $('#btnLoad').addEventListener('click', async () => {
-      try{
-        const token = ($token.value || sessionStorage.getItem('lego_gh_pat') || '').trim();
-        if (token) XmlGitHubStorage.setToken(token); // not required for read, but fine
-        setStatus('Loading current XML...', true);
-
-        const records = await XmlGitHubStorage.load(); // array of records from your module
-        $json.value = JSON.stringify(records, null, 2);
-        setStatus(`Loaded ${records.length} record(s) from data/records.xml.`, true);
-      }catch(err){
-        console.error(err);
-        setStatus('Failed loading current XML. See console for details.', false);
-      }
-    });
-
-    // Main SAVE action
-    $('#btnSave').addEventListener('click', async () => {
-      try{
-        const token = ($token.value || sessionStorage.getItem('lego_gh_pat') || '').trim();
-        if (!token) { setStatus('Missing PAT. Paste your GitHub PAT first.', false); return; }
-        XmlGitHubStorage.setToken(token);
-
-        // Prefer your app’s own collector if available
-        let records;
-        if (typeof window.collectRecords === 'function') {
-          records = window.collectRecords(); // must return array of { id, category, phase, activity, outcome, presentationOwner, contentOwner, notes, links[], tiers{} }
-        } else {
-          // Fallback: read from JSON textarea
-          try{
-            records = JSON.parse($json.value || '[]');
-          }catch(parseErr){
-            setStatus('JSON is invalid. Fix the JSON in the editor or provide window.collectRecords().', false);
-            return;
-          }
+      enterBtn?.addEventListener('click', async () => {
+        const pat = (document.getElementById('gatePass')?.value || '').trim();
+        // Set token so writes (and private reads) work
+        if (window.XmlGitHubStorage && typeof XmlGitHubStorage.setToken === 'function') {
+          XmlGitHubStorage.setToken(pat);
         }
 
-        if (!Array.isArray(records)) {
-          setStatus('Records must be an array. Check your data or window.collectRecords().', false);
-          return;
+        // Show app / hide gate
+        gate?.setAttribute('aria-hidden', 'true');
+        gate?.style && (gate.style.display = 'none');
+        app?.style && (app.style.display = '');
+
+        // Optional: trigger an initial load after login to ensure data appears
+        if (window.LegoSettings && typeof LegoSettings.refresh === 'function') {
+          try { await LegoSettings.refresh(); } catch(e) { /* no-op */ }
         }
-
-        setStatus('Saving to GitHub...', true);
-        await XmlGitHubStorage.replaceAll(records);
-        setStatus('✅ Saved! Committed to /data/records.xml on the configured branch.', true);
-      }catch(err){
-        console.error(err);
-        setStatus('❌ Save failed: ' + (err && err.message ? err.message : 'Unknown error'), false);
-      }
-    });
-  })();
-</script>
-
+      });
+    })();
+  </script>
 </body>
 </html>
-
