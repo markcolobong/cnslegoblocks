@@ -17,7 +17,7 @@ const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${F
 let GITHUB_TOKEN = null; // set after admin login (prompt once per session)
 
 /* -------------------- Public API -------------------- */
-const XmlGitHubStorage = {
+var XmlGitHubStorage = {
   setToken(token){ GITHUB_TOKEN = (token || '').trim() || null; },
 
   async load(){
@@ -229,10 +229,12 @@ function decodeBase64Utf8(b64){
     return '';
   }
 }
-// expose globally
+// expose globally (belt-and-suspenders)
 if (typeof window !== 'undefined') {
   window.XmlGitHubStorage = XmlGitHubStorage;
 }
+
+
 
 
 
