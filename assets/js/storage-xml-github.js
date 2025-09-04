@@ -1,7 +1,8 @@
 /* assets/js/storage-xml-github.js
    XML "database" stored at data/records.xml in your GitHub repo.
-   - Public read via raw.githubusercontent.com
-   - Admin write via GitHub Contents API (requires a PAT with repo contents:write)
+   - Private/public read via GitHub Contents API when a token is set
+   - Public read fallback via raw.githubusercontent.com when no token
+   - Admin write via GitHub Contents API (requires a PAT with repo Contents: write)
    Repo: XE082005777_EYGS/CNSLegoBlocks (branch: main)
 */
 
@@ -21,13 +22,36 @@ const XmlGitHubStorage = {
 
   async load(){
     try{
+      // Prefer Contents API when a token is available (works for private & public)
+      if (GITHUB_TOKEN) {
+        const res = await fetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/vnd.github+json',
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'X-GitHub-Api-Version': '2022-11-28'
+          }
+        });
+
+        if (res.status === 404) return []; // file not created yet
+        if (!res.ok) {
+          // fall back to empty to avoid breaking UI
+          return [];
+        }
+
+        const json = await res.json();
+        const xmlText = decodeBase64Utf8(json.content || '');
+        return parseXmlToRecords(xmlText);
+      }
+
+      // No token → public RAW (only works for public repos)
       const res = await fetch(RAW_URL, { cache: 'no-store' });
       if(!res.ok){
-        // If file not yet created in repo, treat as empty
         return [];
       }
       const text = await res.text();
       return parseXmlToRecords(text);
+
     }catch{
       return [];
     }
@@ -55,12 +79,17 @@ const XmlGitHubStorage = {
 async function saveAllToGitHub(records, message){
   if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
-  // 1) fetch current file SHA (required to update)
+  // 1) fetch current file SHA (required to update if file exists)
   let sha = null;
   const metaRes = await fetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, {
     method: 'GET',
-    headers: { 'Accept': 'application/vnd.github+json' }
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
   });
+
   if (metaRes.status === 200) {
     const meta = await metaRes.json();
     sha = meta.sha;
@@ -72,7 +101,7 @@ async function saveAllToGitHub(records, message){
   // 2) build XML
   const xml = buildXml(records);
   // Proper UTF-8 → base64
-  const content = btoa(unescape(encodeURIComponent(xml)));
+  const content = base64EncodeUtf8(xml);
 
   // 3) commit
   const putRes = await fetch(CONTENTS_URL, {
@@ -80,7 +109,8 @@ async function saveAllToGitHub(records, message){
     headers: {
       'Accept': 'application/vnd.github+json',
       'Authorization': `Bearer ${GITHUB_TOKEN}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28'
     },
     body: JSON.stringify({
       message: message || 'Update data/records.xml',
@@ -89,6 +119,7 @@ async function saveAllToGitHub(records, message){
       branch: BRANCH
     })
   });
+
   if (!putRes.ok) {
     const err = await putRes.json().catch(()=>({}));
     throw new Error(err.message || 'GitHub save failed');
@@ -185,3 +216,16 @@ function buildXml(records){
 // minimal escaper used when querying attributes in DOM
 function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
 
+/* -------------------- UTF-8 Base64 helpers -------------------- */
+// -> Base64 encode a UTF-8 string
+function base64EncodeUtf8(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+// -> Base64 decode to a UTF-8 string
+function decodeBase64Utf8(b64){
+  try {
+    return decodeURIComponent(escape(atob(b64)));
+  } catch {
+    return '';
+  }
+}
