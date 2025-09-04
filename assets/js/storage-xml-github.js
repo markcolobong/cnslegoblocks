@@ -230,4 +230,7 @@ function decodeBase64Utf8(b64){
   }
 }
 
+// Make available to other scripts loaded after this file
+window.XmlGitHubStorage = XmlGitHubStorage;
+
 
