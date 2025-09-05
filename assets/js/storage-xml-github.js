@@ -7,7 +7,7 @@ const FILE_PATH = 'data/records.xml';
 const RAW_URL      = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}`;
 const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`;
 
-let GITHUB_TOKEN = null; // set after admin login
+let GITHUB_TOKEN = null;
 
 var XmlGitHubStorage = {
   setToken(token){ GITHUB_TOKEN = (token || '').trim() || null; },
@@ -19,7 +19,7 @@ var XmlGitHubStorage = {
           method: 'GET',
           headers: {
             'Accept': 'application/vnd.github+json',
-            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Authorization': `token ${GITHUB_TOKEN}`,
             'X-GitHub-Api-Version': '2022-11-28'
           }
         });
@@ -64,7 +64,7 @@ async function saveAllToGitHub(records, message){
     method: 'GET',
     headers: {
       'Accept': 'application/vnd.github+json',
-      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'Authorization': `token ${GITHUB_TOKEN}`,
       'X-GitHub-Api-Version': '2022-11-28'
     }
   });
@@ -84,7 +84,7 @@ async function saveAllToGitHub(records, message){
     method: 'PUT',
     headers: {
       'Accept': 'application/vnd.github+json',
-      'Authorization': `Bearer ${GITHUB_TOKEN}`,
+      'Authorization': `token ${GITHUB_TOKEN}`,
       'Content-Type': 'application/json',
       'X-GitHub-Api-Version': '2022-11-28'
     },
@@ -144,7 +144,7 @@ function parseXmlToRecords(xmlText){
         tier_2_1:tier('tier_2_1'),
         tier_3:  tier('tier_3'),
         tier_3_1:tier('tier_3_1'),
-        tier_3_2:tier('tier_3_2')
+        tier_3_2: tier('tier_3_2')
       }
     });
   });
@@ -195,5 +195,4 @@ function decodeBase64Utf8(b64){
   catch { return ''; }
 }
 
-// expose globally
 if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
