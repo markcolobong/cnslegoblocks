@@ -232,17 +232,16 @@
   <script src="assets/js/storage-xml-github.js"></script>
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + PAT wiring (no UI/visual changes) -->
+  <!-- Login + PAT wiring + session + prompt neutralizer -->
   <script>
   (function(){
-    // Repo config must match storage-xml-github.js
     const OWNER  = 'markcolobong';
     const REPO   = 'cnslegoblocks';
     const BRANCH = 'main';
     const FILE_PATH = 'data/records.xml';
 
-    // ⚠️ You asked to auto-use this PAT after admin login.
-    // NOTE: Anyone with access to the page source can see it.
+    // Per your request: auto-use this PAT after admin login (no second prompt)
+    // ⚠️ Anyone who can view source can see it (client-side).
     const HARDCODED_PAT = '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';
 
     const gate   = document.getElementById('gate');
@@ -250,72 +249,85 @@
     const errBox = document.getElementById('gateError');
     const logout = document.getElementById('logoutLink');
 
+    const SESSION_KEY = 'lego_admin_logged_in'; // "true" when logged in (sessionStorage)
+
     function sanitizeToken(t){
       return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
     }
     async function probeRepo(pat){
       const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${encodeURIComponent(BRANCH)}`;
-      // try token, then Bearer, then Basic
       let r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: `token ${pat}` } });
       if (r.status === 401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: `Bearer ${pat}` } });
       if (r.status === 401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: 'Basic ' + btoa('x:'+pat) } });
       return r.status;
     }
-    function showError(msg){
-      if (!errBox) return;
-      errBox.textContent = msg;
-      errBox.style.display = '';
-    }
-    function hideError(){
-      if (!errBox) return;
-      errBox.textContent = '';
-      errBox.style.display = 'none';
-    }
-    function enterApp(){
-      gate.style.display = 'none';
-      app.style.display  = '';
-      if (logout) logout.style.display = '';
-    }
-    function leaveApp(){
-      if (logout) logout.style.display = 'none';
-      app.style.display  = 'none';
-      gate.style.display = '';
-      hideError();
-    }
+    function showError(msg){ if (errBox){ errBox.textContent = msg; errBox.style.display = ''; } }
+    function hideError(){ if (errBox){ errBox.textContent = ''; errBox.style.display = 'none'; } }
+    function enterApp(){ gate.style.display='none'; app.style.display=''; if (logout) logout.style.display=''; }
+    function leaveApp(){ if (logout) logout.style.display='none'; app.style.display='none'; gate.style.display=''; hideError(); }
 
-    document.getElementById('gateEnter')?.addEventListener('click', async () => {
-      hideError();
-      const u = (document.getElementById('gateUser')?.value || '').trim();
-      const p = (document.getElementById('gatePass')?.value || '').trim();
-
-      // 1) Validate admin creds first. If wrong, block entry.
-      if (u !== 'admin' || p !== '+mark'){
-        showError('Invalid credentials. Please try again.');
-        return; // DO NOT proceed
+    // 🔒 Neutralize any legacy "Paste a PAT" prompt if token already set
+    const originalPrompt = window.prompt;
+    window.prompt = function(msg, def){
+      const looksLikePatPrompt = /personal access token|pat|records\.xml/i.test(String(msg||''));
+      if (looksLikePatPrompt && window.XmlGitHubStorage?.hasToken?.()){
+        return ''; // suppress
       }
+      return originalPrompt ? originalPrompt(msg, def) : null;
+    };
 
-      // 2) Admin creds ok → set PAT automatically, probe, then enter.
-      const pat = sanitizeToken(HARDCODED_PAT);
-      if (!window.XmlGitHubStorage){ showError('Storage not loaded.'); return; }
-      XmlGitHubStorage.setToken(pat);
-
-      const status = await probeRepo(pat);
-      if (status === 200 || status === 404){
+    // 🔁 Session persistence: if already logged-in this session, auto-enter and set PAT
+    function tryAutoResumeSession(){
+      if (sessionStorage.getItem(SESSION_KEY) === 'true'){
+        if (window.XmlGitHubStorage) {
+          XmlGitHubStorage.setToken(sanitizeToken(HARDCODED_PAT));
+        }
         enterApp();
-        if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
-      } else if (status === 401){
-        showError('GitHub token rejected (401).');
-      } else if (status === 403){
-        showError('GitHub token lacks Contents access (403).');
-      } else {
-        showError('GitHub auth failed: ' + status);
+        if (window.LegoSettings?.refresh) { try { LegoSettings.refresh(); } catch {} }
+        return true;
       }
-    });
+      return false;
+    }
 
-    // Logout: clear token and return to gate
+    if (!tryAutoResumeSession()){
+      // wait for manual login
+      document.getElementById('gateEnter')?.addEventListener('click', async () => {
+        hideError();
+        const u = (document.getElementById('gateUser')?.value || '').trim();
+        const p = (document.getElementById('gatePass')?.value || '').trim();
+
+        // 1) Validate admin creds; block if wrong
+        if (u !== 'admin' || p !== '+mark'){
+          showError('Invalid credentials. Please try again.');
+          return;
+        }
+
+        // 2) Admin OK → set PAT automatically
+        const pat = sanitizeToken(HARDCODED_PAT);
+        if (!window.XmlGitHubStorage){ showError('Storage not loaded.'); return; }
+        XmlGitHubStorage.setToken(pat);
+
+        const status = await probeRepo(pat);
+        if (status === 200 || status === 404){
+          // mark session as logged-in (persists until tab/window closed)
+          sessionStorage.setItem(SESSION_KEY, 'true');
+          enterApp();
+          if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
+        } else if (status === 401){
+          showError('GitHub token rejected (401).');
+        } else if (status === 403){
+          showError('GitHub token lacks Contents access (403).');
+        } else {
+          showError('GitHub auth failed: ' + status);
+        }
+      });
+    }
+
+    // Logout: clear token and session, return to gate
     logout?.addEventListener('click', (e) => {
       e.preventDefault();
       if (window.XmlGitHubStorage) XmlGitHubStorage.setToken(null);
+      sessionStorage.removeItem(SESSION_KEY);
       leaveApp();
     });
   })();
