@@ -25,7 +25,7 @@ async function ghFetch(url, init={}){
   const token = sanitizeToken(GITHUB_TOKEN || '');
   if (!token) return fetch(url, Object.assign({}, init, { headers }));
 
-  // Try token → Bearer → Basic (some environments are picky)
+  // Try token → Bearer → Basic
   let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
   if (res.status !== 401) return res;
 
@@ -151,7 +151,7 @@ function parseXmlToRecords(xmlText){
         tier_2_1:tier('tier_2_1'),
         tier_3:  tier('tier_3'),
         tier_3_1:tier('tier_3_1'),
-        tier_3_2:tier('tier_3_2')
+        tier_3_2: tier('tier_3_2')
       }
     });
   });
