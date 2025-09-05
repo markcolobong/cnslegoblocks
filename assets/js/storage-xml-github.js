@@ -34,6 +34,7 @@ async function ghFetch(url, init={}){
 
 var XmlGitHubStorage = {
   setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
+  hasToken(){ return !!GITHUB_TOKEN; },
 
   async load(){
     try{
@@ -45,6 +46,7 @@ var XmlGitHubStorage = {
         const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
         return parseXmlToRecords(xmlText);
       }
+      // Public read fallback
       const res = await fetch(RAW_URL, { cache: 'no-store' });
       if(!res.ok) return [];
       const text = await res.text();
