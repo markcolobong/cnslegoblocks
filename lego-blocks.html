@@ -9,8 +9,10 @@
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
 </head>
 <body>
+  <!-- Themed fixed background for this page -->
   <div class="bg-fixed bg-lego"></div>
 
+  <!-- NAVBAR (same as index) -->
   <header class="nav-wrap container">
     <div class="nav panel">
       <div class="brand">
@@ -30,12 +32,15 @@
           </ul>
         </li>
         <li><a href="index.html#contact">Contact Us</a></li>
+        <li><a href="#" id="logoutLink" style="display:none">Logout</a></li>
       </ul>
     </div>
   </header>
 
+  <!-- Page content (hidden until login) -->
   <div id="app" style="display:none">
     <main class="wrap" id="settings">
+      <!-- Top canvas -->
       <section class="panel hero hero-tight">
         <h1>Lego Blocks Settings</h1>
         <p>Manage records, tiers, links, and attachments for your visit building blocks.</p>
@@ -44,6 +49,7 @@
         </div>
       </section>
 
+      <!-- Records canvas -->
       <section class="panel adv">
         <div class="records-head">
           <div class="left">
@@ -63,21 +69,21 @@
           <div class="table-wrap">
             <table id="dataTable" aria-describedby="countPill">
               <thead>
-                <tr>
-                  <th class="cat">Category</th>
-                  <th class="phase">Phase</th>
-                  <th class="activity">Activity</th>
-                  <th class="outcome">Key Outcome / Key Message</th>
-                  <th class="tier-col">T1</th>
-                  <th class="tier-col">T1.1</th>
-                  <th class="tier-col">T1.2</th>
-                  <th class="tier-col">T2</th>
-                  <th class="tier-col">T2.1</th>
-                  <th class="tier-col">T3</th>
-                  <th class="tier-col">T3.1</th>
-                  <th class="tier-col">T3.2</th>
-                  <th class="actions">Actions</th>
-                </tr>
+              <tr>
+                <th class="cat">Category</th>
+                <th class="phase">Phase</th>
+                <th class="activity">Activity</th>
+                <th class="outcome">Key Outcome / Key Message</th>
+                <th class="tier-col">T1</th>
+                <th class="tier-col">T1.1</th>
+                <th class="tier-col">T1.2</th>
+                <th class="tier-col">T2</th>
+                <th class="tier-col">T2.1</th>
+                <th class="tier-col">T3</th>
+                <th class="tier-col">T3.1</th>
+                <th class="tier-col">T3.2</th>
+                <th class="actions">Actions</th>
+              </tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -93,11 +99,12 @@
     </main>
   </div>
 
+  <!-- Admin login -->
   <div id="gate" class="gate" aria-hidden="false">
     <div class="gate-card panel">
       <div class="gate-header">
         <h2>Admin Sign-in</h2>
-        <p class="muted">Paste your GitHub <em>Personal Access Token</em> in the Password field.</p>
+        <p class="muted">Enter your admin credentials to manage Lego Blocks settings.</p>
       </div>
       <div class="gate-form">
         <div class="field">
@@ -105,16 +112,18 @@
           <input id="gateUser" type="text" placeholder="Username" autocomplete="username" autofocus />
         </div>
         <div class="field">
-          <label for="gatePass">Password (GitHub PAT)</label>
-          <input id="gatePass" type="password" placeholder="GitHub PAT" autocomplete="current-password" />
+          <label for="gatePass">Password</label>
+          <input id="gatePass" type="password" placeholder="Password" autocomplete="current-password" />
         </div>
         <div class="actions">
           <button class="btn btn-cta" id="gateEnter">Enter</button>
         </div>
+        <div class="muted" id="gateError" style="display:none;color:#d33;margin-top:8px"></div>
       </div>
     </div>
   </div>
 
+  <!-- DETAILS modal -->
   <div class="modal-overlay" id="detailsOverlay" aria-hidden="true">
     <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
       <div class="modal-header">
@@ -129,6 +138,7 @@
     </div>
   </div>
 
+  <!-- Add/Edit modal -->
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
     <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
@@ -217,121 +227,96 @@
     </div>
   </div>
 
+  <!-- Your existing app scripts -->
   <script src="assets/js/script.js"></script>
   <script src="assets/js/storage-xml-github.js"></script>
   <script src="assets/js/lego-settings.js"></script>
 
+  <!-- Login + PAT wiring (no UI/visual changes) -->
   <script>
   (function(){
+    // Repo config must match storage-xml-github.js
     const OWNER  = 'markcolobong';
     const REPO   = 'cnslegoblocks';
     const BRANCH = 'main';
     const FILE_PATH = 'data/records.xml';
 
-    const gate = document.getElementById('gate');
-    const app  = document.getElementById('app');
+    // ⚠️ You asked to auto-use this PAT after admin login.
+    // NOTE: Anyone with access to the page source can see it.
+    const HARDCODED_PAT = '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';
+
+    const gate   = document.getElementById('gate');
+    const app    = document.getElementById('app');
+    const errBox = document.getElementById('gateError');
+    const logout = document.getElementById('logoutLink');
 
     function sanitizeToken(t){
-      return (t||'')
-        .trim()
-        .replace(/\s+/g,'')           // remove spaces/newlines
-        .replace(/[\u200B-\u200D]/g,'')// zero-width spaces
-        .replace(/[\uFEFF]/g,'');      // BOM
+      return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
+    }
+    async function probeRepo(pat){
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${encodeURIComponent(BRANCH)}`;
+      // try token, then Bearer, then Basic
+      let r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: `token ${pat}` } });
+      if (r.status === 401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: `Bearer ${pat}` } });
+      if (r.status === 401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: 'Basic ' + btoa('x:'+pat) } });
+      return r.status;
+    }
+    function showError(msg){
+      if (!errBox) return;
+      errBox.textContent = msg;
+      errBox.style.display = '';
+    }
+    function hideError(){
+      if (!errBox) return;
+      errBox.textContent = '';
+      errBox.style.display = 'none';
+    }
+    function enterApp(){
+      gate.style.display = 'none';
+      app.style.display  = '';
+      if (logout) logout.style.display = '';
+    }
+    function leaveApp(){
+      if (logout) logout.style.display = 'none';
+      app.style.display  = 'none';
+      gate.style.display = '';
+      hideError();
     }
 
     document.getElementById('gateEnter')?.addEventListener('click', async () => {
-      let pat = sanitizeToken(document.getElementById('gatePass')?.value);
-      if (!pat){ alert('Paste your GitHub token in the Password field.'); return; }
-      if (!window.XmlGitHubStorage){ alert('XmlGitHubStorage not loaded.'); return; }
+      hideError();
+      const u = (document.getElementById('gateUser')?.value || '').trim();
+      const p = (document.getElementById('gatePass')?.value || '').trim();
 
+      // 1) Validate admin creds first. If wrong, block entry.
+      if (u !== 'admin' || p !== '+mark'){
+        showError('Invalid credentials. Please try again.');
+        return; // DO NOT proceed
+      }
+
+      // 2) Admin creds ok → set PAT automatically, probe, then enter.
+      const pat = sanitizeToken(HARDCODED_PAT);
+      if (!window.XmlGitHubStorage){ showError('Storage not loaded.'); return; }
       XmlGitHubStorage.setToken(pat);
 
-      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${encodeURIComponent(BRANCH)}`;
-      const r = await fetch(url, { headers: { Authorization: `token ${pat}`, 'X-GitHub-Api-Version':'2022-11-28' } })
-        .then(async res => {
-          if (res.status !== 401) return res;
-          // fallback auth schemes
-          let retry = await fetch(url, { headers: { Authorization: `Bearer ${pat}`, 'X-GitHub-Api-Version':'2022-11-28' } });
-          if (retry.status !== 401) return retry;
-          const basic = 'Basic ' + btoa('x:' + pat);
-          return fetch(url, { headers: { Authorization: basic, 'X-GitHub-Api-Version':'2022-11-28' } });
-        });
-
-      if (r.status === 200 || r.status === 404){
-        gate.style.display = 'none';
-        app.style.display  = '';
+      const status = await probeRepo(pat);
+      if (status === 200 || status === 404){
+        enterApp();
         if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
-      } else if (r.status === 401){
-        alert('401 Bad credentials. Recreate your token (fine-grained: Contents Read/Write for this repo, or classic ghp_ with repo scope).');
-      } else if (r.status === 403){
-        alert('403 Forbidden: token lacks Contents access to this repo.');
+      } else if (status === 401){
+        showError('GitHub token rejected (401).');
+      } else if (status === 403){
+        showError('GitHub token lacks Contents access (403).');
       } else {
-        alert('Auth failed: ' + r.status + ' ' + (await r.text()));
+        showError('GitHub auth failed: ' + status);
       }
     });
 
-    const form = document.getElementById('recordForm');
-    const submitBtn = document.getElementById('submitBtn');
-
-    function rid(){ return 'r_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
-
-    form?.addEventListener('submit', async (e) => {
+    // Logout: clear token and return to gate
+    logout?.addEventListener('click', (e) => {
       e.preventDefault();
-      if (!window.XmlGitHubStorage){ alert('XmlGitHubStorage not loaded.'); return; }
-
-      const record = {
-        id: document.getElementById('recordId').value || rid(),
-        category: document.getElementById('category').value,
-        phase: document.getElementById('phase').value,
-        activity: document.getElementById('activity').value,
-        outcome: document.getElementById('outcome').value,
-        presentationOwner: document.getElementById('presentationOwner').value,
-        contentOwner: document.getElementById('contentOwner').value,
-        notes: document.getElementById('notes').value,
-        links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
-          label: row.querySelector('.link-label')?.value || '',
-          url:   row.querySelector('.link-url')?.value   || ''
-        })),
-        tiers: {
-          tier_1:  document.getElementById('tier_1').value,
-          tier_1_1:document.getElementById('tier_1_1').value,
-          tier_1_2:document.getElementById('tier_1_2').value,
-          tier_2:  document.getElementById('tier_2').value,
-          tier_2_1:document.getElementById('tier_2_1').value,
-          tier_3:  document.getElementById('tier_3').value,
-          tier_3_1:document.getElementById('tier_3_1').value,
-          tier_3_2:document.getElementById('tier_3_2').value
-        }
-      };
-
-      submitBtn.disabled = true; submitBtn.textContent = 'Saving…';
-      try{
-        await XmlGitHubStorage.upsertOne(record);
-        alert('Saved to GitHub XML');
-        if (window.LegoSettings?.refresh) { await LegoSettings.refresh(); }
-        document.getElementById('recordId').value = record.id;
-      }catch(err){
-        alert('Save failed: ' + (err?.message || err));
-      }finally{
-        submitBtn.disabled = false; submitBtn.textContent = 'Save';
-      }
-    });
-
-    const delBtn = document.getElementById('editDeleteBtn');
-    delBtn?.addEventListener('click', async () => {
-      const id = document.getElementById('recordId').value;
-      if (!id){ alert('No record id.'); return; }
-      if (!confirm('Delete this record?')) return;
-
-      try{
-        await XmlGitHubStorage.deleteOne(id);
-        alert('Deleted from GitHub XML');
-        if (window.LegoSettings?.refresh) { await LegoSettings.refresh(); }
-        document.getElementById('recordForm').reset();
-        document.getElementById('recordId').value = '';
-      }catch(err){
-        alert('Delete failed: ' + (err?.message || err));
-      }
+      if (window.XmlGitHubStorage) XmlGitHubStorage.setToken(null);
+      leaveApp();
     });
   })();
   </script>
