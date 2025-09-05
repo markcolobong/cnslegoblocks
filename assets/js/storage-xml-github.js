@@ -25,7 +25,7 @@ async function ghFetch(url, init={}){
   const token = sanitizeToken(GITHUB_TOKEN || '');
   if (!token) return fetch(url, Object.assign({}, init, { headers }));
 
-  // Try token → Bearer → Basic
+  // Try token → Bearer → Basic (to maximize browser compatibility)
   let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
   if (res.status !== 401) return res;
 
@@ -77,41 +77,68 @@ var XmlGitHubStorage = {
   }
 };
 
+/* ===== Helpers ===== */
+async function getCurrentSha(){
+  const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+  if (res.status === 200){
+    const meta = await res.json();
+    return meta.sha || null;
+  }
+  if (res.status === 404) return null; // file doesn't exist yet
+  const t = await res.text();
+  throw new Error('Failed reading file metadata: ' + t);
+}
+
 async function saveAllToGitHub(records, message){
   if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
-
-  // fetch current file sha (or 404 if new)
-  let sha = null;
-  const metaRes = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
-  if (metaRes.status === 200) {
-    const meta = await metaRes.json();
-    sha = meta.sha;
-  } else if (metaRes.status !== 404) {
-    const t = await metaRes.text();
-    throw new Error('Failed reading file metadata: ' + t);
-  }
 
   const xml = buildXml(records);
   const content = base64EncodeUtf8(xml);
 
-  const putRes = await ghFetch(CONTENTS_URL, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: message || 'Update data/records.xml',
-      content,
-      sha,
-      branch: BRANCH
-    })
-  });
+  let sha = await getCurrentSha(); // always get latest SHA
 
-  if (!putRes.ok) {
-    const err = await putRes.json().catch(()=>({}));
-    throw new Error(err.message || 'GitHub save failed');
+  async function put(shaToUse){
+    return ghFetch(CONTENTS_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message || 'Update data/records.xml',
+        content,
+        sha: shaToUse || undefined, // omit to create file
+        branch: BRANCH
+      })
+    });
+  }
+
+  // First attempt
+  let res = await put(sha);
+
+  // Retry once on SHA mismatch / conflict
+  if (!res.ok) {
+    let errBody;
+    try { errBody = await res.json(); } catch { errBody = {}; }
+    const msg = (errBody && errBody.message) ? String(errBody.message) : '';
+    const isShaMismatch = res.status === 409 ||
+                          res.status === 422 ||
+                          /does not match/i.test(msg) ||
+                          /sha/i.test(msg);
+    if (isShaMismatch) {
+      sha = await getCurrentSha();      // refresh sha
+      res = await put(sha);             // retry
+    } else {
+      // not a sha error; throw original error
+      throw new Error(msg || ('GitHub save failed ('+res.status+')'));
+    }
+  }
+
+  if (!res.ok) {
+    let err;
+    try { err = await res.json(); } catch { err = {}; }
+    throw new Error(err.message || ('GitHub save failed ('+res.status+')'));
   }
 }
 
-/* -------------------- XML <-> JS -------------------- */
+/* ===== XML <-> JS ===== */
 function parseXmlToRecords(xmlText){
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -151,7 +178,7 @@ function parseXmlToRecords(xmlText){
         tier_2_1:tier('tier_2_1'),
         tier_3:  tier('tier_3'),
         tier_3_1:tier('tier_3_1'),
-        tier_3_2: tier('tier_3_2')
+        tier_3_2:tier('tier_3_2')
       }
     });
   });
