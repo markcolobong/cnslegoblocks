@@ -229,27 +229,22 @@
 
   <!-- Scripts -->
   <script src="assets/js/script.js"></script>
-
-  <!-- Storage: configured to use proxy (next file contains PROXY_URL) -->
   <script src="assets/js/storage-xml-github.js"></script>
 
-  <!-- Suppress any legacy PAT prompts BEFORE lego-settings.js loads -->
+  <!-- Suppress any legacy PAT prompt BEFORE lego-settings.js loads -->
   <script>
     (function(){
       const _prompt = window.prompt;
       window.prompt = function(msg, def){
-        if (/(personal access token|pat|records\.xml)/i.test(String(msg||''))) {
-          return ''; // never show the popup
-        }
+        if (/(personal access token|pat|records\.xml)/i.test(String(msg||''))) return '';
         return _prompt ? _prompt(msg, def) : null;
       };
     })();
   </script>
 
-  <!-- Your app logic (unchanged visuals; uses XmlGitHubStorage under the hood) -->
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + session + logout -->
+  <!-- Login + session + logout (PAT auto-applied on valid login) -->
   <script>
   (function(){
     const gate   = document.getElementById('gate');
@@ -258,13 +253,17 @@
     const logout = document.getElementById('logoutLink');
     const SESSION_KEY = 'lego_admin_logged_in';
 
+    // ⚠️ Your hardcoded PAT — per your request (visible in page source)
+    const HARDCODED_PAT = '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';
+
     function showError(msg){ if (errBox){ errBox.textContent = msg; errBox.style.display = ''; } }
     function hideError(){ if (errBox){ errBox.textContent = ''; errBox.style.display = 'none'; } }
     function enterApp(){ gate.style.display='none'; app.style.display=''; if (logout) logout.style.display=''; }
     function leaveApp(){ if (logout) logout.style.display='none'; app.style.display='none'; gate.style.display=''; hideError(); }
 
-    // Resume session in this tab without re-login
+    // Resume session in this tab
     if (sessionStorage.getItem(SESSION_KEY) === 'true') {
+      if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(HARDCODED_PAT);
       enterApp();
       if (window.LegoSettings?.refresh) { try { LegoSettings.refresh(); } catch {} }
     } else {
@@ -279,16 +278,8 @@
           return;
         }
 
-        // No PAT prompt. Token lives server-side in the proxy.
-        // Optionally, you could ping the proxy to sanity-check availability.
-        try {
-          // simple HEAD ping:
-          const pong = await fetch(XmlGitHubStorage.healthUrl(), { method: 'GET' });
-          if (!pong.ok) throw new Error('Proxy not reachable');
-        } catch (e) {
-          showError('Backend not reachable. Please try again.');
-          return;
-        }
+        // Apply PAT automatically (no prompts)
+        if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(HARDCODED_PAT);
 
         sessionStorage.setItem(SESSION_KEY, 'true');
         enterApp();
@@ -296,10 +287,11 @@
       });
     }
 
-    // Logout clears session
+    // Logout clears session + token
     logout?.addEventListener('click', (e) => {
       e.preventDefault();
       sessionStorage.removeItem(SESSION_KEY);
+      if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(null);
       leaveApp();
     });
   })();
