@@ -221,7 +221,6 @@
   <script src="assets/js/storage-xml-github.js"></script>
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + Save/Delete glue -->
   <script>
   (function(){
     const OWNER  = 'markcolobong';
@@ -239,24 +238,23 @@
 
       XmlGitHubStorage.setToken(pat);
 
-      // Fine-grained PAT-safe probe: 200=file exists, 404=file missing but token OK
+      // Probe repo using PAT (fine-grained friendly): 200 exists, 404 missing but OK
       const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${encodeURIComponent(BRANCH)}`;
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${pat}`, 'X-GitHub-Api-Version':'2022-11-28' } });
+      const r = await fetch(url, { headers: { Authorization: `token ${pat}`, 'X-GitHub-Api-Version':'2022-11-28' } });
 
       if (r.status === 200 || r.status === 404){
         gate.style.display = 'none';
         app.style.display  = '';
         if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
       } else if (r.status === 401){
-        alert('401 Bad credentials: invalid/expired token. Regenerate and paste again.');
+        alert('401 Bad credentials: invalid/expired token. If fine-grained, ensure Contents: Read & Write for this repo; otherwise try a classic ghp_ token.');
       } else if (r.status === 403){
-        alert('403 Forbidden: token lacks Contents access to this repo. Create a fine-grained token for "cnslegoblocks" with Contents: Read & Write.');
+        alert('403 Forbidden: token lacks Contents access to this repo. Recreate with Contents: Read & Write for "cnslegoblocks".');
       } else {
         alert('Auth failed: ' + r.status + ' ' + (await r.text()));
       }
     });
 
-    // Collect form → save to GitHub via XmlGitHubStorage
     const form = document.getElementById('recordForm');
     const submitBtn = document.getElementById('submitBtn');
 
