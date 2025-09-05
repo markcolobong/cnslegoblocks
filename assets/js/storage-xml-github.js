@@ -1,4 +1,3 @@
-// GitHub XML storage using Contents API directly from the browser
 const OWNER  = 'markcolobong';
 const REPO   = 'cnslegoblocks';
 const BRANCH = 'main';
@@ -22,7 +21,6 @@ async function ghFetch(url, init={}){
   const token = sanitizeToken(GITHUB_TOKEN || '');
   if (!token) return fetch(url, Object.assign({}, init, { headers }));
 
-  // Try token → Bearer → Basic (some environments are picky)
   let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
   if (res.status !== 401) return res;
 
@@ -46,7 +44,6 @@ var XmlGitHubStorage = {
         const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
         return parseXmlToRecords(xmlText);
       }
-      // Public read fallback (works for public repos)
       const res = await fetch(RAW_URL, { cache: 'no-store' });
       if(!res.ok) return [];
       const text = await res.text();
@@ -77,7 +74,6 @@ var XmlGitHubStorage = {
 async function saveAllToGitHub(records, message){
   if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
-  // fetch current file sha (or 404 if new)
   let sha = null;
   const metaRes = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
   if (metaRes.status === 200) {
@@ -108,7 +104,6 @@ async function saveAllToGitHub(records, message){
   }
 }
 
-/* -------------------- XML <-> JS -------------------- */
 function parseXmlToRecords(xmlText){
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -196,5 +191,4 @@ function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); 
 function decodeBase64Utf8(b64){
   try { return decodeURIComponent(escape(atob(b64))); } catch { return ''; }
 }
-
 if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
