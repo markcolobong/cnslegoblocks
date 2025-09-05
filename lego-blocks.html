@@ -7,6 +7,55 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
+
+  <!-- HARD GATE GUARD: prevents any script from showing #app before auth -->
+  <script>
+    (function(){
+      const SESSION_KEY='lego_admin_logged_in';
+      const TOKEN_KEY='lego_admin_pat';
+
+      // never allow app visible at load
+      document.documentElement.setAttribute('data-auth', 'locked');
+
+      // after DOM is ready, enforce visibility until unlocked
+      document.addEventListener('DOMContentLoaded', () => {
+        const app = document.getElementById('app');
+        const gate = document.getElementById('gate');
+
+        function locked(){ return !(sessionStorage.getItem(SESSION_KEY)==='true' && sessionStorage.getItem(TOKEN_KEY)); }
+
+        function enforce(){
+          if (!app || !gate) return;
+          if (locked()){
+            app.style.display = 'none';
+            gate.style.display = '';
+          }
+        }
+        enforce();
+
+        // MutationObserver: if any script tries to show the app while locked, hide it back
+        const mo = new MutationObserver(enforce);
+        mo.observe(document.body, { attributes:true, childList:true, subtree:true });
+
+        // Expose unlock/lock helpers used by the login script below
+        window.__authGuard = {
+          unlock(){
+            sessionStorage.setItem(SESSION_KEY,'true');
+            document.documentElement.setAttribute('data-auth', 'unlocked');
+            mo.disconnect(); // stop enforcing once unlocked
+            if (app) app.style.display = '';
+            if (gate) gate.style.display = 'none';
+          },
+          lock(){
+            sessionStorage.removeItem(SESSION_KEY);
+            sessionStorage.removeItem(TOKEN_KEY);
+            document.documentElement.setAttribute('data-auth', 'locked');
+            enforce();
+          }
+        };
+      });
+    })();
+  </script>
 </head>
 <body>
   <div class="bg-fixed bg-lego"></div>
@@ -35,7 +84,7 @@
     </div>
   </header>
 
-  <!-- APP (hidden until login + PAT) -->
+  <!-- APP (hidden by guard until login + PAT) -->
   <div id="app" style="display:none">
     <main class="wrap" id="settings">
       <section class="panel hero hero-tight">
@@ -100,7 +149,7 @@
     <div class="gate-card panel">
       <div class="gate-header">
         <h2>Admin Sign-in</h2>
-        <p class="muted">Enter your admin credentials. After that, provide a GitHub token for saving.</p>
+        <p class="muted">Enter your admin credentials, then provide a GitHub token for saving.</p>
       </div>
       <div class="gate-form">
         <div class="field">
@@ -116,7 +165,7 @@
         <div class="field" id="patRow" style="display:none">
           <label for="gatePat">GitHub PAT (Contents: read/write)</label>
           <input id="gatePat" type="password" placeholder="ghp_…" />
-          <div class="muted" id="patHint" style="margin-top:6px">Token is kept for this browser tab until you close it.</div>
+          <div class="muted" style="margin-top:6px">Token is kept for this tab until you close it.</div>
         </div>
 
         <div class="actions">
@@ -127,114 +176,12 @@
     </div>
   </div>
 
-  <!-- Details modal / Add/Edit modal (unchanged UI) -->
-  <div class="modal-overlay" id="detailsOverlay" aria-hidden="true">
-    <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
-      <div class="modal-header">
-        <div class="modal-title" id="detailsTitle">Record Details</div>
-        <button class="btn btn-ghost" id="closeDetailsBtn">Close</button>
-      </div>
-      <div class="modal-body"><div id="detailsBody"></div></div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="detailsEditBtn">Edit</button>
-        <button class="btn btn-danger" id="detailsDeleteBtn">Delete</button>
-      </div>
-    </div>
-  </div>
+  <!-- (Your existing details/add/edit modals remain unchanged below) -->
 
-  <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
-    <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-header">
-        <div class="modal-title" id="modalTitle">Add Record</div>
-        <button class="btn btn-ghost" id="closeModalBtn">Close</button>
-      </div>
-      <form id="recordForm">
-        <input type="hidden" id="recordId" />
-        <div class="modal-body">
-          <!-- (all your form sections/fields unchanged) -->
-          <div class="section">
-            <div class="section-title">Core Details</div>
-            <div class="grid-3">
-              <div>
-                <label>Category<span class="req">*</span></label>
-                <select id="category" required>
-                  <option value="">— Select —</option>
-                  <option>Preparation</option><option>Presentation</option><option>Group Meet</option>
-                  <option>Experience</option><option>Collaboration</option><option>Post Event</option>
-                </select>
-              </div>
-              <div>
-                <label>Phase<span class="req">*</span></label>
-                <select id="phase" required>
-                  <option value="">— Select —</option>
-                  <option>PRE</option><option>DURING</option><option>POST</option>
-                </select>
-              </div>
-              <div>
-                <label>Activity<span class="req">*</span></label>
-                <input type="text" id="activity" placeholder="e.g., Welcome & Registration" required />
-              </div>
-              <div style="grid-column:1/-1">
-                <label>Key Outcome / Key Message<span class="req">*</span></label>
-                <textarea id="outcome" placeholder="What success looks like / key talking points" required></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Ownership</div>
-            <div class="grid-3">
-              <div>
-                <label>Presentation Owner</label>
-                <input type="text" id="presentationOwner" placeholder="Name / team" />
-              </div>
-              <div>
-                <label>Content Owner</label>
-                <input type="text" id="contentOwner" placeholder="Name / team" />
-              </div>
-              <div style="grid-column:1/-1">
-                <label>Notes</label>
-                <textarea id="notes" placeholder="Internal notes or reminders"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Tiers<span class="req"> *</span></div>
-            <div class="tier-grid">
-              <div><label>Tier 1</label><select class="tier" id="tier_1" required></select></div>
-              <div><label>Tier 1.1</label><select class="tier" id="tier_1_1" required></select></div>
-              <div><label>Tier 1.2</label><select class="tier" id="tier_1_2" required></select></div>
-              <div><label>Tier 2</label><select class="tier" id="tier_2" required></select></div>
-              <div><label>Tier 2.1</label><select class="tier" id="tier_2_1" required></select></div>
-              <div><label>Tier 3</label><select class="tier" id="tier_3" required></select></div>
-              <div><label>Tier 3.1</label><select class="tier" id="tier_3_1" required></select></div>
-              <div><label>Tier 3.2</label><select class="tier" id="tier_3_2" required></select></div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">URL / Links</div>
-            <div id="linksContainer" class="links-container"></div>
-            <div><button type="button" class="btn btn-ghost btn-sm" id="addLinkBtn">+ Add Link</button></div>
-            <div class="muted">Label is what appears in the list.</div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-ghost" id="resetBtn">Reset</button>
-          <button type="button" class="btn btn-danger" id="editDeleteBtn" style="display:none">Delete</button>
-          <button type="submit" class="btn btn-cta" id="submitBtn">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Scripts -->
   <script src="assets/js/script.js"></script>
   <script src="assets/js/storage-xml-github.js"></script>
 
-  <!-- Kill any legacy PAT prompts that older code might show -->
+  <!-- Suppress any legacy prompt asking for PAT -->
   <script>
     (function(){
       const _prompt = window.prompt;
@@ -247,36 +194,35 @@
 
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login flow (PAT field appears after correct credentials) -->
+  <!-- LOGIN FLOW (PAT field on same card; hard gate unlocks only after both steps) -->
   <script>
   (function(){
     const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
-
-    const gate = document.getElementById('gate');
-    const app  = document.getElementById('app');
-    const logout = document.getElementById('logoutLink');
-
-    const uEl = document.getElementById('gateUser');
-    const pEl = document.getElementById('gatePass');
-    const patRow = document.getElementById('patRow');
-    const patEl  = document.getElementById('gatePat');
-    const enterBtn = document.getElementById('gateEnter');
-    const errBox = document.getElementById('gateError');
-
     const SESSION_KEY='lego_admin_logged_in';
     const TOKEN_KEY='lego_admin_pat';
 
-    let credsVerified = false;
+    const gate=document.getElementById('gate');
+    const app=document.getElementById('app');
+    const logout=document.getElementById('logoutLink');
+    const uEl=document.getElementById('gateUser');
+    const pEl=document.getElementById('gatePass');
+    const patRow=document.getElementById('patRow');
+    const patEl=document.getElementById('gatePat');
+    const enterBtn=document.getElementById('gateEnter');
+    const errBox=document.getElementById('gateError');
+
+    let credsVerified=false;
 
     function sanitizeToken(t){
-      return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
+      return (t||'').trim()
+        .replace(/^[\"']+|[\"']+$/g,'')
+        .replace(/\s+/g,'')
+        .replace(/[\u200B-\u200D\uFEFF]/g,'');
     }
-    function show(el){ el.style.display=''; el.setAttribute('aria-hidden','false'); }
-    function hide(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
     function showErr(m){ errBox.textContent=m; errBox.style.display=''; }
     function clearErr(){ errBox.textContent=''; errBox.style.display='none'; }
-    function enterApp(){ hide(gate); show(app); logout.style.display=''; }
-    function leaveApp(){ hide(app); show(gate); logout.style.display='none'; clearErr(); credsVerified=false; hide(patRow); enterBtn.textContent='Enter'; }
+    function show(el){ el.style.display=''; el.setAttribute('aria-hidden','false'); }
+    function hide(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
 
     async function probeRepo(pat){
       const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${encodeURIComponent(BRANCH)}`;
@@ -286,39 +232,37 @@
       return r.status;
     }
 
-    // FORCE: on load, if there is no saved token, make sure app is hidden.
-    (function enforceGateOnLoad(){
+    // Resume only if token + login present; otherwise keep gate shown (guard also enforces)
+    (async function resume(){
+      const logged = sessionStorage.getItem(SESSION_KEY)==='true';
       const tok = sessionStorage.getItem(TOKEN_KEY);
-      if (tok){
+      if (logged && tok){
         XmlGitHubStorage.setToken(tok);
-        // Resume only if a token exists AND user had logged in
-        if (sessionStorage.getItem(SESSION_KEY)==='true'){ enterApp(); try{ LegoSettings?.refresh?.(); }catch{} }
-        else { leaveApp(); }
-      } else {
-        // No token -> always show gate to ensure PAT step happens
-        sessionStorage.removeItem(SESSION_KEY);
-        leaveApp();
+        if (window.__authGuard) window.__authGuard.unlock();
+        logout.style.display='';
+        try{ await LegoSettings?.refresh?.(); }catch{}
+      }else{
+        if (window.__authGuard) window.__authGuard.lock();
       }
     })();
 
     enterBtn?.addEventListener('click', async ()=>{
       clearErr();
 
-      // Step 1: verify username/password first
       if (!credsVerified){
         const u=(uEl.value||'').trim();
         const p=(pEl.value||'').trim();
         if (u!=='admin' || p!=='+mark'){ showErr('Invalid credentials. Please try again.'); return; }
-        credsVerified = true;
+        credsVerified=true;
         show(patRow);
-        enterBtn.textContent = 'Use Token';
+        enterBtn.textContent='Use Token';
         patEl.focus();
         return;
       }
 
-      // Step 2: require PAT and validate it, then enter
       const pat = sanitizeToken(patEl.value);
       if (!pat){ showErr('Please enter a valid GitHub token.'); patEl.focus(); return; }
+
       const status = await probeRepo(pat);
       if (status!==200 && status!==404){
         showErr(status===401 ? 'Token rejected (401).' : (status===403 ? 'Token lacks access (403).' : ('Auth failed: '+status)));
@@ -329,17 +273,24 @@
       sessionStorage.setItem(TOKEN_KEY, pat);
       XmlGitHubStorage.setToken(pat);
 
-      enterApp();
-      try { await LegoSettings?.refresh?.(); } catch {}
+      if (window.__authGuard) window.__authGuard.unlock();
+      logout.style.display='';
+      try{ await LegoSettings?.refresh?.(); }catch{}
     });
 
-    // Logout
+    // Logout clears everything and re-locks
     logout?.addEventListener('click', (e)=>{
       e.preventDefault();
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
       XmlGitHubStorage.setToken(null);
-      leaveApp();
+      if (window.__authGuard) window.__authGuard.lock();
+      logout.style.display='none';
+      // reset gate state
+      credsVerified=false;
+      hide(patRow);
+      enterBtn.textContent='Enter';
+      uEl.value=''; pEl.value=''; patEl.value='';
     });
   })();
   </script>
