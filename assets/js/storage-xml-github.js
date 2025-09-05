@@ -9,20 +9,44 @@ const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${F
 
 let GITHUB_TOKEN = null;
 
+function sanitizeToken(t){
+  return (t||'')
+    .trim()
+    .replace(/\s+/g,'')
+    .replace(/[\u200B-\u200D]/g,'')
+    .replace(/[\uFEFF]/g,'');
+}
+
+// retry auth schemes: token → Bearer → Basic
+async function ghFetch(url, init={}){
+  const headers = Object.assign({
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  }, init.headers || {});
+
+  const token = sanitizeToken(GITHUB_TOKEN || '');
+  if (!token) return fetch(url, Object.assign({}, init, { headers }));
+
+  // 1) token
+  let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
+  if (res.status !== 401) return res;
+
+  // 2) Bearer
+  res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `Bearer ${token}` }) }));
+  if (res.status !== 401) return res;
+
+  // 3) Basic (x:token)
+  const basic = 'Basic ' + btoa('x:' + token);
+  return fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: basic }) }));
+}
+
 var XmlGitHubStorage = {
-  setToken(token){ GITHUB_TOKEN = (token || '').trim() || null; },
+  setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
 
   async load(){
     try{
       if (GITHUB_TOKEN) {
-        const res = await fetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/vnd.github+json',
-            'Authorization': `token ${GITHUB_TOKEN}`,
-            'X-GitHub-Api-Version': '2022-11-28'
-          }
-        });
+        const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
         if (res.status === 404) return [];
         if (!res.ok) return [];
         const json = await res.json();
@@ -60,14 +84,7 @@ async function saveAllToGitHub(records, message){
   if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
   let sha = null;
-  const metaRes = await fetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/vnd.github+json',
-      'Authorization': `token ${GITHUB_TOKEN}`,
-      'X-GitHub-Api-Version': '2022-11-28'
-    }
-  });
+  const metaRes = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
 
   if (metaRes.status === 200) {
     const meta = await metaRes.json();
@@ -80,14 +97,9 @@ async function saveAllToGitHub(records, message){
   const xml = buildXml(records);
   const content = base64EncodeUtf8(xml);
 
-  const putRes = await fetch(CONTENTS_URL, {
+  const putRes = await ghFetch(CONTENTS_URL, {
     method: 'PUT',
-    headers: {
-      'Accept': 'application/vnd.github+json',
-      'Authorization': `token ${GITHUB_TOKEN}`,
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message: message || 'Update data/records.xml',
       content,
@@ -188,7 +200,6 @@ function buildXml(records){
 }
 
 function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
-
 function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
 function decodeBase64Utf8(b64){
   try { return decodeURIComponent(escape(atob(b64))); }
