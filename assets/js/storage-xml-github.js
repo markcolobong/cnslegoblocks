@@ -10,14 +10,9 @@ const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${F
 let GITHUB_TOKEN = null;
 
 function sanitizeToken(t){
-  return (t||'')
-    .trim()
-    .replace(/\s+/g,'')
-    .replace(/[\u200B-\u200D]/g,'')
-    .replace(/[\uFEFF]/g,'');
+  return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
 }
 
-// retry auth schemes: token → Bearer → Basic
 async function ghFetch(url, init={}){
   const headers = Object.assign({
     'Accept': 'application/vnd.github+json',
@@ -27,17 +22,14 @@ async function ghFetch(url, init={}){
   const token = sanitizeToken(GITHUB_TOKEN || '');
   if (!token) return fetch(url, Object.assign({}, init, { headers }));
 
-  // 1) token
+  // Try token → Bearer → Basic
   let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
   if (res.status !== 401) return res;
 
-  // 2) Bearer
   res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `Bearer ${token}` }) }));
   if (res.status !== 401) return res;
 
-  // 3) Basic (x:token)
-  const basic = 'Basic ' + btoa('x:' + token);
-  return fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: basic }) }));
+  return fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: 'Basic ' + btoa('x:' + token) }) }));
 }
 
 var XmlGitHubStorage = {
@@ -50,7 +42,7 @@ var XmlGitHubStorage = {
         if (res.status === 404) return [];
         if (!res.ok) return [];
         const json = await res.json();
-        const xmlText = decodeBase64Utf8(json.content || '');
+        const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
         return parseXmlToRecords(xmlText);
       }
       const res = await fetch(RAW_URL, { cache: 'no-store' });
@@ -83,9 +75,9 @@ var XmlGitHubStorage = {
 async function saveAllToGitHub(records, message){
   if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
+  // fetch current file sha (or 404 if new)
   let sha = null;
   const metaRes = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
-
   if (metaRes.status === 200) {
     const meta = await metaRes.json();
     sha = meta.sha;
@@ -132,10 +124,7 @@ function parseXmlToRecords(xmlText){
 
     const links = [];
     node.querySelectorAll('Links > Link').forEach(L => {
-      links.push({
-        label: L.getAttribute('label') || '',
-        url:   L.getAttribute('url')   || ''
-      });
+      links.push({ label: L.getAttribute('label') || '', url: L.getAttribute('url') || '' });
     });
 
     records.push({
@@ -156,7 +145,7 @@ function parseXmlToRecords(xmlText){
         tier_2_1:tier('tier_2_1'),
         tier_3:  tier('tier_3'),
         tier_3_1:tier('tier_3_1'),
-        tier_3_2: tier('tier_3_2')
+        tier_3_2:tier('tier_3_2')
       }
     });
   });
@@ -202,8 +191,7 @@ function buildXml(records){
 function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
 function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
 function decodeBase64Utf8(b64){
-  try { return decodeURIComponent(escape(atob(b64))); }
-  catch { return ''; }
+  try { return decodeURIComponent(escape(atob(b64))); } catch { return ''; }
 }
 
 if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
