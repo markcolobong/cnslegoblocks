@@ -1,4 +1,4 @@
-// XML "database" stored at data/records.xml in your GitHub repo
+// GitHub XML storage using Contents API directly from the browser
 const OWNER  = 'markcolobong';
 const REPO   = 'cnslegoblocks';
 const BRANCH = 'main';
@@ -22,7 +22,7 @@ async function ghFetch(url, init={}){
   const token = sanitizeToken(GITHUB_TOKEN || '');
   if (!token) return fetch(url, Object.assign({}, init, { headers }));
 
-  // Try token → Bearer → Basic
+  // Try token → Bearer → Basic (some environments are picky)
   let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
   if (res.status !== 401) return res;
 
@@ -46,7 +46,7 @@ var XmlGitHubStorage = {
         const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
         return parseXmlToRecords(xmlText);
       }
-      // Public read fallback
+      // Public read fallback (works for public repos)
       const res = await fetch(RAW_URL, { cache: 'no-store' });
       if(!res.ok) return [];
       const text = await res.text();
@@ -108,6 +108,7 @@ async function saveAllToGitHub(records, message){
   }
 }
 
+/* -------------------- XML <-> JS -------------------- */
 function parseXmlToRecords(xmlText){
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
