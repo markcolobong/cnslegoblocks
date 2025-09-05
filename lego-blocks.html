@@ -9,10 +9,8 @@
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
 </head>
 <body>
-  <!-- Themed fixed background for this page -->
   <div class="bg-fixed bg-lego"></div>
 
-  <!-- NAVBAR (same as index) -->
   <header class="nav-wrap container">
     <div class="nav panel">
       <div class="brand">
@@ -37,10 +35,9 @@
     </div>
   </header>
 
-  <!-- Page content (hidden until login) -->
+  <!-- APP (hidden until login + PAT) -->
   <div id="app" style="display:none">
     <main class="wrap" id="settings">
-      <!-- Top canvas -->
       <section class="panel hero hero-tight">
         <h1>Lego Blocks Settings</h1>
         <p>Manage records, tiers, links, and attachments for your visit building blocks.</p>
@@ -49,7 +46,6 @@
         </div>
       </section>
 
-      <!-- Records canvas -->
       <section class="panel adv">
         <div class="records-head">
           <div class="left">
@@ -69,21 +65,21 @@
           <div class="table-wrap">
             <table id="dataTable" aria-describedby="countPill">
               <thead>
-              <tr>
-                <th class="cat">Category</th>
-                <th class="phase">Phase</th>
-                <th class="activity">Activity</th>
-                <th class="outcome">Key Outcome / Key Message</th>
-                <th class="tier-col">T1</th>
-                <th class="tier-col">T1.1</th>
-                <th class="tier-col">T1.2</th>
-                <th class="tier-col">T2</th>
-                <th class="tier-col">T2.1</th>
-                <th class="tier-col">T3</th>
-                <th class="tier-col">T3.1</th>
-                <th class="tier-col">T3.2</th>
-                <th class="actions">Actions</th>
-              </tr>
+                <tr>
+                  <th class="cat">Category</th>
+                  <th class="phase">Phase</th>
+                  <th class="activity">Activity</th>
+                  <th class="outcome">Key Outcome / Key Message</th>
+                  <th class="tier-col">T1</th>
+                  <th class="tier-col">T1.1</th>
+                  <th class="tier-col">T1.2</th>
+                  <th class="tier-col">T2</th>
+                  <th class="tier-col">T2.1</th>
+                  <th class="tier-col">T3</th>
+                  <th class="tier-col">T3.1</th>
+                  <th class="tier-col">T3.2</th>
+                  <th class="actions">Actions</th>
+                </tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -99,7 +95,7 @@
     </main>
   </div>
 
-  <!-- Admin login -->
+  <!-- ADMIN LOGIN GATE -->
   <div id="gate" class="gate" aria-hidden="false">
     <div class="gate-card panel">
       <div class="gate-header">
@@ -123,7 +119,29 @@
     </div>
   </div>
 
-  <!-- DETAILS modal -->
+  <!-- PAT MODAL (only after correct admin creds; once per tab session) -->
+  <div class="modal-overlay" id="patOverlay" aria-hidden="true">
+    <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="patTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="patTitle">GitHub Access</div>
+        <button class="btn btn-ghost" id="closePatBtn">Close</button>
+      </div>
+      <div class="modal-body">
+        <p>Paste a valid GitHub Personal Access Token (Contents: <em>read/write</em>) to enable saving to <code>data/records.xml</code>.</p>
+        <div class="field">
+          <label for="patInput">Personal Access Token</label>
+          <input id="patInput" type="password" placeholder="ghp_…" />
+        </div>
+        <div class="muted" id="patError" style="display:none;color:#d33;margin-top:8px"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="patSkipBtn">Skip</button>
+        <button class="btn btn-cta" id="patUseBtn">Use Token</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILS modal (unchanged) -->
   <div class="modal-overlay" id="detailsOverlay" aria-hidden="true">
     <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
       <div class="modal-header">
@@ -138,17 +156,17 @@
     </div>
   </div>
 
-  <!-- Add/Edit modal -->
+  <!-- Add/Edit modal (unchanged) -->
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
     <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
         <div class="modal-title" id="modalTitle">Add Record</div>
         <button class="btn btn-ghost" id="closeModalBtn">Close</button>
       </div>
-
       <form id="recordForm">
         <input type="hidden" id="recordId" />
         <div class="modal-body">
+          <!-- existing sections/fields unchanged -->
           <div class="section">
             <div class="section-title">Core Details</div>
             <div class="grid-3">
@@ -231,7 +249,7 @@
   <script src="assets/js/script.js"></script>
   <script src="assets/js/storage-xml-github.js"></script>
 
-  <!-- Suppress any legacy PAT prompt BEFORE lego-settings.js loads -->
+  <!-- Kill any old PAT prompts in legacy code -->
   <script>
     (function(){
       const _prompt = window.prompt;
@@ -244,54 +262,101 @@
 
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + session + logout (PAT auto-applied on valid login) -->
+  <!-- Login + session + PAT modal -->
   <script>
   (function(){
-    const gate   = document.getElementById('gate');
-    const app    = document.getElementById('app');
-    const errBox = document.getElementById('gateError');
-    const logout = document.getElementById('logoutLink');
-    const SESSION_KEY = 'lego_admin_logged_in';
+    const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
+    const gate=document.getElementById('gate'), app=document.getElementById('app');
+    const errBox=document.getElementById('gateError'); const logout=document.getElementById('logoutLink');
+    const patOverlay=document.getElementById('patOverlay'); const patUseBtn=document.getElementById('patUseBtn');
+    const patSkipBtn=document.getElementById('patSkipBtn'); const patInput=document.getElementById('patInput');
+    const closePatBtn=document.getElementById('closePatBtn');
+    const SESSION_KEY='lego_admin_logged_in'; const TOKEN_KEY='lego_admin_pat';
 
-    // ⚠️ Your hardcoded PAT — per your request (visible in page source)
-    const HARDCODED_PAT = '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';
+    function showError(msg){ errBox.textContent=msg; errBox.style.display=''; }
+    function hideError(){ errBox.textContent=''; errBox.style.display='none'; }
+    function show(el){ el.style.display=''; el.setAttribute('aria-hidden','false'); }
+    function hide(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
+    function enterApp(){ hide(gate); show(app); logout.style.display=''; }
+    function leaveApp(){ hide(app); show(gate); logout.style.display='none'; hideError(); }
 
-    function showError(msg){ if (errBox){ errBox.textContent = msg; errBox.style.display = ''; } }
-    function hideError(){ if (errBox){ errBox.textContent = ''; errBox.style.display = 'none'; } }
-    function enterApp(){ gate.style.display='none'; app.style.display=''; if (logout) logout.style.display=''; }
-    function leaveApp(){ if (logout) logout.style.display='none'; app.style.display='none'; gate.style.display=''; hideError(); }
-
-    // Resume session in this tab
-    if (sessionStorage.getItem(SESSION_KEY) === 'true') {
-      if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(HARDCODED_PAT);
-      enterApp();
-      if (window.LegoSettings?.refresh) { try { LegoSettings.refresh(); } catch {} }
-    } else {
-      document.getElementById('gateEnter')?.addEventListener('click', async () => {
-        hideError();
-        const u = (document.getElementById('gateUser')?.value || '').trim();
-        const p = (document.getElementById('gatePass')?.value || '').trim();
-
-        // STRICT BLOCK: wrong creds -> NO ENTRY
-        if (u !== 'admin' || p !== '+mark'){
-          showError('Invalid credentials. Please try again.');
-          return;
-        }
-
-        // Apply PAT automatically (no prompts)
-        if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(HARDCODED_PAT);
-
-        sessionStorage.setItem(SESSION_KEY, 'true');
-        enterApp();
-        if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
-      });
+    async function probeRepo(pat){
+      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${encodeURIComponent(BRANCH)}`;
+      let r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization:`token ${pat}` }});
+      if (r.status===401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization:`Bearer ${pat}` }});
+      if (r.status===401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization:'Basic '+btoa('x:'+pat) }});
+      return r.status;
     }
 
+    // resume session if both login + PAT exist
+    (async function tryResume(){
+      const logged = sessionStorage.getItem(SESSION_KEY)==='true';
+      const tok = sessionStorage.getItem(TOKEN_KEY);
+      if (logged && tok){
+        XmlGitHubStorage.setToken(tok);
+        enterApp();
+        try{ await LegoSettings?.refresh?.(); }catch{}
+      }
+    })();
+
+    document.getElementById('gateEnter')?.addEventListener('click', async () => {
+      hideError();
+      const u=(document.getElementById('gateUser')?.value||'').trim();
+      const p=(document.getElementById('gatePass')?.value||'').trim();
+
+      // STRICT: wrong creds -> stop
+      if (u!=='admin' || p!=='+mark'){ showError('Invalid credentials. Please try again.'); return; }
+
+      // admin OK -> if we already have a PAT in session, use it; else ask once via modal
+      const tok = sessionStorage.getItem(TOKEN_KEY);
+      if (tok){
+        XmlGitHubStorage.setToken(tok);
+        enterApp();
+        try{ await LegoSettings?.refresh?.(); }catch{}
+      } else {
+        show(patOverlay);
+        patInput.focus();
+      }
+    });
+
+    patUseBtn?.addEventListener('click', async () => {
+      document.getElementById('patError').style.display='none';
+      const pat=(patInput.value||'').trim();
+      if (!pat) { document.getElementById('patError').textContent='Please paste a valid token.'; document.getElementById('patError').style.display=''; return; }
+
+      const status = await probeRepo(pat);
+      if (status!==200 && status!==404){
+        document.getElementById('patError').textContent = status===401 ? 'Token rejected (401).' : (status===403 ? 'Token lacks access (403).' : ('Auth failed: '+status));
+        document.getElementById('patError').style.display='';
+        return;
+      }
+
+      // success: store for this tab session, set storage, enter app
+      sessionStorage.setItem(SESSION_KEY,'true');
+      sessionStorage.setItem(TOKEN_KEY,pat);
+      XmlGitHubStorage.setToken(pat);
+      hide(patOverlay);
+      enterApp();
+      try{ await LegoSettings?.refresh?.(); }catch{}
+    });
+
+    // Optional: allow read-only usage if skipping PAT (no writes)
+    patSkipBtn?.addEventListener('click', () => {
+      sessionStorage.setItem(SESSION_KEY,'true');
+      // do NOT set token -> reads via raw.githubusercontent fallback, writes disabled
+      hide(patOverlay);
+      enterApp();
+      try{ LegoSettings?.refresh?.(); }catch{}
+    });
+
+    closePatBtn?.addEventListener('click', ()=>{ hide(patOverlay); });
+
     // Logout clears session + token
-    logout?.addEventListener('click', (e) => {
+    logout?.addEventListener('click', (e)=>{
       e.preventDefault();
       sessionStorage.removeItem(SESSION_KEY);
-      if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(null);
+      sessionStorage.removeItem(TOKEN_KEY);
+      XmlGitHubStorage.setToken(null);
       leaveApp();
     });
   })();
