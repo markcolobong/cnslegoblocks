@@ -9,8 +9,10 @@
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
 </head>
 <body>
+  <!-- Themed fixed background for this page -->
   <div class="bg-fixed bg-lego"></div>
 
+  <!-- NAVBAR (same as index) -->
   <header class="nav-wrap container">
     <div class="nav panel">
       <div class="brand">
@@ -38,6 +40,7 @@
   <!-- APP (hidden until login + PAT) -->
   <div id="app" style="display:none">
     <main class="wrap" id="settings">
+      <!-- Top canvas -->
       <section class="panel hero hero-tight">
         <h1>Lego Blocks Settings</h1>
         <p>Manage records, tiers, links, and attachments for your visit building blocks.</p>
@@ -46,6 +49,7 @@
         </div>
       </section>
 
+      <!-- Records canvas -->
       <section class="panel adv">
         <div class="records-head">
           <div class="left">
@@ -141,7 +145,7 @@
     </div>
   </div>
 
-  <!-- DETAILS modal (unchanged) -->
+  <!-- DETAILS modal -->
   <div class="modal-overlay" id="detailsOverlay" aria-hidden="true">
     <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
       <div class="modal-header">
@@ -156,7 +160,7 @@
     </div>
   </div>
 
-  <!-- Add/Edit modal (unchanged) -->
+  <!-- Add/Edit modal -->
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
     <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
@@ -166,7 +170,7 @@
       <form id="recordForm">
         <input type="hidden" id="recordId" />
         <div class="modal-body">
-          <!-- existing sections/fields unchanged -->
+          <!-- (all your existing form sections/fields unchanged) -->
           <div class="section">
             <div class="section-title">Core Details</div>
             <div class="grid-3">
@@ -249,7 +253,7 @@
   <script src="assets/js/script.js"></script>
   <script src="assets/js/storage-xml-github.js"></script>
 
-  <!-- Kill any old PAT prompts in legacy code -->
+  <!-- Suppress any legacy PAT prompt BEFORE lego-settings.js loads -->
   <script>
     (function(){
       const _prompt = window.prompt;
@@ -260,19 +264,35 @@
     })();
   </script>
 
+  <!-- Your app logic (unchanged visuals; uses XmlGitHubStorage under the hood) -->
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + session + PAT modal -->
+  <!-- Login + session + PAT modal + write-guards -->
   <script>
   (function(){
     const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
-    const gate=document.getElementById('gate'), app=document.getElementById('app');
-    const errBox=document.getElementById('gateError'); const logout=document.getElementById('logoutLink');
-    const patOverlay=document.getElementById('patOverlay'); const patUseBtn=document.getElementById('patUseBtn');
-    const patSkipBtn=document.getElementById('patSkipBtn'); const patInput=document.getElementById('patInput');
-    const closePatBtn=document.getElementById('closePatBtn');
-    const SESSION_KEY='lego_admin_logged_in'; const TOKEN_KEY='lego_admin_pat';
 
+    const gate=document.getElementById('gate');
+    const app=document.getElementById('app');
+    const errBox=document.getElementById('gateError');
+    const logout=document.getElementById('logoutLink');
+
+    const patOverlay=document.getElementById('patOverlay');
+    const patUseBtn=document.getElementById('patUseBtn');
+    const patSkipBtn=document.getElementById('patSkipBtn');
+    const patInput=document.getElementById('patInput');
+    const patError=document.getElementById('patError');
+    const closePatBtn=document.getElementById('closePatBtn');
+
+    const form=document.getElementById('recordForm');
+    const delBtn=document.getElementById('editDeleteBtn');
+
+    const SESSION_KEY='lego_admin_logged_in';
+    const TOKEN_KEY='lego_admin_pat';
+
+    function sanitizeToken(t){
+      return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
+    }
     function showError(msg){ errBox.textContent=msg; errBox.style.display=''; }
     function hideError(){ errBox.textContent=''; errBox.style.display='none'; }
     function show(el){ el.style.display=''; el.setAttribute('aria-hidden','false'); }
@@ -288,26 +308,30 @@
       return r.status;
     }
 
-    // resume session if both login + PAT exist
+    // Resume session if both login + PAT exist
     (async function tryResume(){
       const logged = sessionStorage.getItem(SESSION_KEY)==='true';
       const tok = sessionStorage.getItem(TOKEN_KEY);
-      if (logged && tok){
-        XmlGitHubStorage.setToken(tok);
+      if (logged){
+        if (tok){ XmlGitHubStorage.setToken(tok); }
         enterApp();
         try{ await LegoSettings?.refresh?.(); }catch{}
       }
     })();
 
+    // Strict admin login
     document.getElementById('gateEnter')?.addEventListener('click', async () => {
       hideError();
       const u=(document.getElementById('gateUser')?.value||'').trim();
       const p=(document.getElementById('gatePass')?.value||'').trim();
 
-      // STRICT: wrong creds -> stop
-      if (u!=='admin' || p!=='+mark'){ showError('Invalid credentials. Please try again.'); return; }
+      if (u!=='admin' || p!=='+mark'){
+        showError('Invalid credentials. Please try again.');
+        return;
+      }
 
-      // admin OK -> if we already have a PAT in session, use it; else ask once via modal
+      sessionStorage.setItem(SESSION_KEY,'true');
+
       const tok = sessionStorage.getItem(TOKEN_KEY);
       if (tok){
         XmlGitHubStorage.setToken(tok);
@@ -319,20 +343,19 @@
       }
     });
 
+    // PAT modal actions
     patUseBtn?.addEventListener('click', async () => {
-      document.getElementById('patError').style.display='none';
-      const pat=(patInput.value||'').trim();
-      if (!pat) { document.getElementById('patError').textContent='Please paste a valid token.'; document.getElementById('patError').style.display=''; return; }
+      patError.style.display='none';
+      const pat=sanitizeToken(patInput.value);
+      if (!pat){ patError.textContent='Please paste a valid token.'; patError.style.display=''; return; }
 
       const status = await probeRepo(pat);
       if (status!==200 && status!==404){
-        document.getElementById('patError').textContent = status===401 ? 'Token rejected (401).' : (status===403 ? 'Token lacks access (403).' : ('Auth failed: '+status));
-        document.getElementById('patError').style.display='';
+        patError.textContent = status===401 ? 'Token rejected (401).' : (status===403 ? 'Token lacks access (403).' : ('Auth failed: '+status));
+        patError.style.display='';
         return;
       }
 
-      // success: store for this tab session, set storage, enter app
-      sessionStorage.setItem(SESSION_KEY,'true');
       sessionStorage.setItem(TOKEN_KEY,pat);
       XmlGitHubStorage.setToken(pat);
       hide(patOverlay);
@@ -340,10 +363,8 @@
       try{ await LegoSettings?.refresh?.(); }catch{}
     });
 
-    // Optional: allow read-only usage if skipping PAT (no writes)
     patSkipBtn?.addEventListener('click', () => {
-      sessionStorage.setItem(SESSION_KEY,'true');
-      // do NOT set token -> reads via raw.githubusercontent fallback, writes disabled
+      // Read-only mode for this session (no token set)
       hide(patOverlay);
       enterApp();
       try{ LegoSettings?.refresh?.(); }catch{}
@@ -351,7 +372,23 @@
 
     closePatBtn?.addEventListener('click', ()=>{ hide(patOverlay); });
 
-    // Logout clears session + token
+    // ✅ Guard writes: require token before Save/Delete
+    function ensureTokenOrAsk(){
+      if (window.XmlGitHubStorage?.hasToken?.()) return true;
+      show(patOverlay);
+      patInput.focus();
+      return false;
+    }
+
+    form?.addEventListener('submit', (e) => {
+      if (!ensureTokenOrAsk()){ e.preventDefault(); e.stopPropagation(); }
+    });
+
+    delBtn?.addEventListener('click', (e) => {
+      if (!ensureTokenOrAsk()){ e.preventDefault(); e.stopPropagation(); }
+    });
+
+    // Logout
     logout?.addEventListener('click', (e)=>{
       e.preventDefault();
       sessionStorage.removeItem(SESSION_KEY);
