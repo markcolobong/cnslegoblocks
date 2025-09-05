@@ -227,106 +227,78 @@
     </div>
   </div>
 
-  <!-- Your existing app scripts -->
+  <!-- Scripts -->
   <script src="assets/js/script.js"></script>
+
+  <!-- Storage: configured to use proxy (next file contains PROXY_URL) -->
   <script src="assets/js/storage-xml-github.js"></script>
+
+  <!-- Suppress any legacy PAT prompts BEFORE lego-settings.js loads -->
+  <script>
+    (function(){
+      const _prompt = window.prompt;
+      window.prompt = function(msg, def){
+        if (/(personal access token|pat|records\.xml)/i.test(String(msg||''))) {
+          return ''; // never show the popup
+        }
+        return _prompt ? _prompt(msg, def) : null;
+      };
+    })();
+  </script>
+
+  <!-- Your app logic (unchanged visuals; uses XmlGitHubStorage under the hood) -->
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + PAT wiring + session + prompt neutralizer -->
+  <!-- Login + session + logout -->
   <script>
   (function(){
-    const OWNER  = 'markcolobong';
-    const REPO   = 'cnslegoblocks';
-    const BRANCH = 'main';
-    const FILE_PATH = 'data/records.xml';
-
-    // Per your request: auto-use this PAT after admin login (no second prompt)
-    // ⚠️ Anyone who can view source can see it (client-side).
-    const HARDCODED_PAT = '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';
-
     const gate   = document.getElementById('gate');
     const app    = document.getElementById('app');
     const errBox = document.getElementById('gateError');
     const logout = document.getElementById('logoutLink');
+    const SESSION_KEY = 'lego_admin_logged_in';
 
-    const SESSION_KEY = 'lego_admin_logged_in'; // "true" when logged in (sessionStorage)
-
-    function sanitizeToken(t){
-      return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
-    }
-    async function probeRepo(pat){
-      const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${encodeURIComponent(BRANCH)}`;
-      let r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: `token ${pat}` } });
-      if (r.status === 401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: `Bearer ${pat}` } });
-      if (r.status === 401) r = await fetch(url, { headers: { 'X-GitHub-Api-Version':'2022-11-28', Authorization: 'Basic ' + btoa('x:'+pat) } });
-      return r.status;
-    }
     function showError(msg){ if (errBox){ errBox.textContent = msg; errBox.style.display = ''; } }
     function hideError(){ if (errBox){ errBox.textContent = ''; errBox.style.display = 'none'; } }
     function enterApp(){ gate.style.display='none'; app.style.display=''; if (logout) logout.style.display=''; }
     function leaveApp(){ if (logout) logout.style.display='none'; app.style.display='none'; gate.style.display=''; hideError(); }
 
-    // 🔒 Neutralize any legacy "Paste a PAT" prompt if token already set
-    const originalPrompt = window.prompt;
-    window.prompt = function(msg, def){
-      const looksLikePatPrompt = /personal access token|pat|records\.xml/i.test(String(msg||''));
-      if (looksLikePatPrompt && window.XmlGitHubStorage?.hasToken?.()){
-        return ''; // suppress
-      }
-      return originalPrompt ? originalPrompt(msg, def) : null;
-    };
-
-    // 🔁 Session persistence: if already logged-in this session, auto-enter and set PAT
-    function tryAutoResumeSession(){
-      if (sessionStorage.getItem(SESSION_KEY) === 'true'){
-        if (window.XmlGitHubStorage) {
-          XmlGitHubStorage.setToken(sanitizeToken(HARDCODED_PAT));
-        }
-        enterApp();
-        if (window.LegoSettings?.refresh) { try { LegoSettings.refresh(); } catch {} }
-        return true;
-      }
-      return false;
-    }
-
-    if (!tryAutoResumeSession()){
-      // wait for manual login
+    // Resume session in this tab without re-login
+    if (sessionStorage.getItem(SESSION_KEY) === 'true') {
+      enterApp();
+      if (window.LegoSettings?.refresh) { try { LegoSettings.refresh(); } catch {} }
+    } else {
       document.getElementById('gateEnter')?.addEventListener('click', async () => {
         hideError();
         const u = (document.getElementById('gateUser')?.value || '').trim();
         const p = (document.getElementById('gatePass')?.value || '').trim();
 
-        // 1) Validate admin creds; block if wrong
+        // STRICT BLOCK: wrong creds -> NO ENTRY
         if (u !== 'admin' || p !== '+mark'){
           showError('Invalid credentials. Please try again.');
           return;
         }
 
-        // 2) Admin OK → set PAT automatically
-        const pat = sanitizeToken(HARDCODED_PAT);
-        if (!window.XmlGitHubStorage){ showError('Storage not loaded.'); return; }
-        XmlGitHubStorage.setToken(pat);
-
-        const status = await probeRepo(pat);
-        if (status === 200 || status === 404){
-          // mark session as logged-in (persists until tab/window closed)
-          sessionStorage.setItem(SESSION_KEY, 'true');
-          enterApp();
-          if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
-        } else if (status === 401){
-          showError('GitHub token rejected (401).');
-        } else if (status === 403){
-          showError('GitHub token lacks Contents access (403).');
-        } else {
-          showError('GitHub auth failed: ' + status);
+        // No PAT prompt. Token lives server-side in the proxy.
+        // Optionally, you could ping the proxy to sanity-check availability.
+        try {
+          // simple HEAD ping:
+          const pong = await fetch(XmlGitHubStorage.healthUrl(), { method: 'GET' });
+          if (!pong.ok) throw new Error('Proxy not reachable');
+        } catch (e) {
+          showError('Backend not reachable. Please try again.');
+          return;
         }
+
+        sessionStorage.setItem(SESSION_KEY, 'true');
+        enterApp();
+        if (window.LegoSettings?.refresh) { try { await LegoSettings.refresh(); } catch {} }
       });
     }
 
-    // Logout: clear token and session, return to gate
+    // Logout clears session
     logout?.addEventListener('click', (e) => {
       e.preventDefault();
-      if (window.XmlGitHubStorage) XmlGitHubStorage.setToken(null);
       sessionStorage.removeItem(SESSION_KEY);
       leaveApp();
     });
