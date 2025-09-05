@@ -115,32 +115,18 @@
           <label for="gatePass">Password</label>
           <input id="gatePass" type="password" placeholder="Password" autocomplete="current-password" />
         </div>
+
+        <!-- Hidden until username/password correct -->
+        <div class="field" id="patRow" style="display:none">
+          <label for="gatePat">GitHub PAT (Contents: read/write)</label>
+          <input id="gatePat" type="password" placeholder="ghp_…" />
+          <div class="muted" id="patHint" style="margin-top:6px">This token will be used for this browser session.</div>
+        </div>
+
         <div class="actions">
           <button class="btn btn-cta" id="gateEnter">Enter</button>
         </div>
         <div class="muted" id="gateError" style="display:none;color:#d33;margin-top:8px"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PAT MODAL (only after correct admin creds; once per tab session) -->
-  <div class="modal-overlay" id="patOverlay" aria-hidden="true">
-    <div class="modal panel" role="dialog" aria-modal="true" aria-labelledby="patTitle">
-      <div class="modal-header">
-        <div class="modal-title" id="patTitle">GitHub Access</div>
-        <button class="btn btn-ghost" id="closePatBtn">Close</button>
-      </div>
-      <div class="modal-body">
-        <p>Paste a valid GitHub Personal Access Token (Contents: <em>read/write</em>) to enable saving to <code>data/records.xml</code>.</p>
-        <div class="field">
-          <label for="patInput">Personal Access Token</label>
-          <input id="patInput" type="password" placeholder="ghp_…" />
-        </div>
-        <div class="muted" id="patError" style="display:none;color:#d33;margin-top:8px"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="patSkipBtn">Skip</button>
-        <button class="btn btn-cta" id="patUseBtn">Use Token</button>
       </div>
     </div>
   </div>
@@ -267,7 +253,7 @@
   <!-- Your app logic (unchanged visuals; uses XmlGitHubStorage under the hood) -->
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Login + session + PAT modal + write-guards -->
+  <!-- Login + session + PAT on same gate -->
   <script>
   (function(){
     const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
@@ -277,18 +263,16 @@
     const errBox=document.getElementById('gateError');
     const logout=document.getElementById('logoutLink');
 
-    const patOverlay=document.getElementById('patOverlay');
-    const patUseBtn=document.getElementById('patUseBtn');
-    const patSkipBtn=document.getElementById('patSkipBtn');
-    const patInput=document.getElementById('patInput');
-    const patError=document.getElementById('patError');
-    const closePatBtn=document.getElementById('closePatBtn');
-
-    const form=document.getElementById('recordForm');
-    const delBtn=document.getElementById('editDeleteBtn');
+    const uEl=document.getElementById('gateUser');
+    const pEl=document.getElementById('gatePass');
+    const patRow=document.getElementById('patRow');
+    const patEl=document.getElementById('gatePat');
+    const enterBtn=document.getElementById('gateEnter');
 
     const SESSION_KEY='lego_admin_logged_in';
     const TOKEN_KEY='lego_admin_pat';
+
+    let credsVerified = false; // becomes true after correct username/password
 
     function sanitizeToken(t){
       return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
@@ -298,7 +282,7 @@
     function show(el){ el.style.display=''; el.setAttribute('aria-hidden','false'); }
     function hide(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); }
     function enterApp(){ hide(gate); show(app); logout.style.display=''; }
-    function leaveApp(){ hide(app); show(gate); logout.style.display='none'; hideError(); }
+    function leaveApp(){ hide(app); show(gate); logout.style.display='none'; hideError(); credsVerified=false; hide(patRow); enterBtn.textContent='Enter'; }
 
     async function probeRepo(pat){
       const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${encodeURIComponent(BRANCH)}`;
@@ -308,87 +292,61 @@
       return r.status;
     }
 
-    // Resume session if both login + PAT exist
+    // Resume session if possible
     (async function tryResume(){
       const logged = sessionStorage.getItem(SESSION_KEY)==='true';
       const tok = sessionStorage.getItem(TOKEN_KEY);
-      if (logged){
-        if (tok){ XmlGitHubStorage.setToken(tok); }
+      if (logged && tok){
+        XmlGitHubStorage.setToken(tok);
         enterApp();
         try{ await LegoSettings?.refresh?.(); }catch{}
       }
     })();
 
-    // Strict admin login
-    document.getElementById('gateEnter')?.addEventListener('click', async () => {
+    // One button handles two phases:
+    // Phase 1: verify username/password → reveal PAT field.
+    // Phase 2: accept PAT → set token, enter app.
+    enterBtn?.addEventListener('click', async () => {
       hideError();
-      const u=(document.getElementById('gateUser')?.value||'').trim();
-      const p=(document.getElementById('gatePass')?.value||'').trim();
 
-      if (u!=='admin' || p!=='+mark'){
-        showError('Invalid credentials. Please try again.');
+      // Phase 1: verify user/pass
+      if (!credsVerified){
+        const u=(uEl.value||'').trim();
+        const p=(pEl.value||'').trim();
+        if (u!=='admin' || p!=='+mark'){
+          showError('Invalid credentials. Please try again.');
+          return;
+        }
+        credsVerified = true;
+        show(patRow);
+        enterBtn.textContent = 'Use Token';
+        patEl.focus();
         return;
       }
 
-      sessionStorage.setItem(SESSION_KEY,'true');
-
-      const tok = sessionStorage.getItem(TOKEN_KEY);
-      if (tok){
-        XmlGitHubStorage.setToken(tok);
-        enterApp();
-        try{ await LegoSettings?.refresh?.(); }catch{}
-      } else {
-        show(patOverlay);
-        patInput.focus();
+      // Phase 2: require PAT and verify it against the repo
+      const rawPat = sanitizeToken(patEl.value);
+      if (!rawPat){
+        showError('Please enter a valid GitHub token.');
+        patEl.focus();
+        return;
       }
-    });
-
-    // PAT modal actions
-    patUseBtn?.addEventListener('click', async () => {
-      patError.style.display='none';
-      const pat=sanitizeToken(patInput.value);
-      if (!pat){ patError.textContent='Please paste a valid token.'; patError.style.display=''; return; }
-
-      const status = await probeRepo(pat);
+      const status = await probeRepo(rawPat);
       if (status!==200 && status!==404){
-        patError.textContent = status===401 ? 'Token rejected (401).' : (status===403 ? 'Token lacks access (403).' : ('Auth failed: '+status));
-        patError.style.display='';
+        showError(status===401 ? 'Token rejected (401).' : (status===403 ? 'Token lacks access (403).' : ('Auth failed: '+status)));
         return;
       }
 
-      sessionStorage.setItem(TOKEN_KEY,pat);
-      XmlGitHubStorage.setToken(pat);
-      hide(patOverlay);
+      // Success → persist for this browser session
+      sessionStorage.setItem(SESSION_KEY,'true');
+      sessionStorage.setItem(TOKEN_KEY,rawPat);
+      XmlGitHubStorage.setToken(rawPat);
+
       enterApp();
       try{ await LegoSettings?.refresh?.(); }catch{}
     });
 
-    patSkipBtn?.addEventListener('click', () => {
-      // Read-only mode for this session (no token set)
-      hide(patOverlay);
-      enterApp();
-      try{ LegoSettings?.refresh?.(); }catch{}
-    });
-
-    closePatBtn?.addEventListener('click', ()=>{ hide(patOverlay); });
-
-    // ✅ Guard writes: require token before Save/Delete
-    function ensureTokenOrAsk(){
-      if (window.XmlGitHubStorage?.hasToken?.()) return true;
-      show(patOverlay);
-      patInput.focus();
-      return false;
-    }
-
-    form?.addEventListener('submit', (e) => {
-      if (!ensureTokenOrAsk()){ e.preventDefault(); e.stopPropagation(); }
-    });
-
-    delBtn?.addEventListener('click', (e) => {
-      if (!ensureTokenOrAsk()){ e.preventDefault(); e.stopPropagation(); }
-    });
-
-    // Logout
+    // Logout clears session and token
     logout?.addEventListener('click', (e)=>{
       e.preventDefault();
       sessionStorage.removeItem(SESSION_KEY);
