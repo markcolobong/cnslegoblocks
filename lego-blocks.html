@@ -401,7 +401,7 @@
     }
 
     async function getCurrentSha(){
-      const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+      const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache:'no-store' });
       if (res.status === 200){
         const meta = await res.json();
         return meta.sha || null;
@@ -410,48 +410,39 @@
       const t = await res.text();
       throw new Error('Failed reading file metadata: ' + t);
     }
+    function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
     async function saveAllToGitHub(records, message){
       if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
-      const xml = buildXml(records);
+      const xml     = buildXml(records);
       const content = base64EncodeUtf8(xml);
-      let sha = await getCurrentSha();
 
-      async function put(shaToUse){
-        return ghFetch(CONTENTS_URL, {
+      const MAX_TRIES = 4;
+      for (let attempt = 1; attempt <= MAX_TRIES; attempt++){
+        const sha = await getCurrentSha();
+
+        const res = await ghFetch(CONTENTS_URL, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: message || 'Update data/records.xml',
             content,
-            sha: shaToUse || undefined,
+            sha: sha || undefined,
             branch: BRANCH
           })
         });
-      }
 
-      let res = await put(sha);
-      if (!res.ok) {
-        let errBody;
-        try { errBody = await res.json(); } catch { errBody = {}; }
-        const msg = (errBody && errBody.message) ? String(errBody.message) : '';
-        const isShaMismatch = res.status === 409 ||
-                              res.status === 422 ||
-                              /does not match/i.test(msg) ||
-                              /sha/i.test(msg);
-        if (isShaMismatch) {
-          sha = await getCurrentSha();
-          res = await put(sha);
-        } else {
-          throw new Error(msg || ('GitHub save failed ('+res.status+')'));
+        if (res.ok) return;
+
+        let msg = '';
+        try { msg = (await res.json())?.message || ''; } catch { try { msg = await res.text(); } catch {} }
+        const isConflict = res.status === 409 || res.status === 422 || /does not match|sha/i.test(msg);
+        if (isConflict && attempt < MAX_TRIES){
+          await sleep(250 * attempt);
+          continue;
         }
-      }
-
-      if (!res.ok) {
-        let err;
-        try { err = await res.json(); } catch { err = {}; }
-        throw new Error(err.message || ('GitHub save failed ('+res.status+')'));
+        throw new Error(msg || ('GitHub save failed ('+res.status+')'));
       }
     }
 
@@ -462,7 +453,7 @@
       async load(){
         try{
           if (GITHUB_TOKEN) {
-            const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+            const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache:'no-store' });
             if (res.status === 404) return [];
             if (!res.ok) return [];
             const json = await res.json();
@@ -483,6 +474,15 @@
         const idx = all.findIndex(r => r.id === record.id);
         if (idx >= 0) all[idx] = record; else all.push(record);
         await saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
+      },
+
+      async updateOneById(record){
+        if (!record?.id) throw new Error('Missing record id');
+        const all = await this.load();
+        const idx = all.findIndex(r => r.id === record.id);
+        if (idx === -1) throw new Error('Record not found: ' + record.id);
+        all[idx] = record;
+        await saveAllToGitHub(all, 'Update record ' + record.id + ' from Lego Settings UI');
       },
 
       async replaceAll(records){
@@ -642,7 +642,7 @@
   })();
   </script>
 
-  <!-- Add Record glue -->
+  <!-- Add Record glue (targeted edit by id + create) -->
   <script>
   (function(){
     const $ = (id) => document.getElementById(id);
@@ -728,7 +728,12 @@
         if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
         try{
-          await XmlGitHubStorage.upsertOne(record);
+          const isEdit = !!val('recordId');
+          if (isEdit && XmlGitHubStorage.updateOneById){
+            await XmlGitHubStorage.updateOneById(record);   // targeted update by id
+          }else{
+            await XmlGitHubStorage.upsertOne(record);       // create (or upsert)
+          }
           if (idInput) idInput.value = record.id;
           try{ await window.LegoSettings?.refresh?.(); }catch{}
           closeModal();
