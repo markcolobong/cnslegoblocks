@@ -1050,25 +1050,4 @@
     <T name="tier_3_2">Not Applicable</T>
     </Tiers>
   </Record>
-  <Record id="r_p3b0sz0v3dqmf98tl4v">
-    <Category></Category>
-    <Phase></Phase>
-    <Activity></Activity>
-    <Outcome></Outcome>
-    <PresentationOwner></PresentationOwner>
-    <ContentOwner></ContentOwner>
-    <Notes></Notes>
-    <Links>
-    </Links>
-    <Tiers>
-    <T name="tier_1"></T>
-    <T name="tier_1_1"></T>
-    <T name="tier_1_2"></T>
-    <T name="tier_2"></T>
-    <T name="tier_2_1"></T>
-    <T name="tier_3"></T>
-    <T name="tier_3_1"></T>
-    <T name="tier_3_2"></T>
-    </Tiers>
-  </Record>
 </Records>
