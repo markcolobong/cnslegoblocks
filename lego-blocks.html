@@ -550,247 +550,252 @@
   })();
   </script>
 
-<!-- ADD RECORD: delete-like UX (instant row, no 'Saving…', rollback on failure) -->
+<!-- ADD: Append row only AFTER modal closes (post-save). No 'Saving…'. -->
 <script>
 (function(){
-  const $ = (id) => document.getElementById(id);
+  const $  = (id)=>document.getElementById(id);
+  const q  = (sel, el=document)=>el.querySelector(sel);
+  const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
+  const S  = (v)=>String(v ?? '');
 
-  const addBtn      = $('openAddBtn');
-  const overlay     = $('modalOverlay');
-  const form        = $('recordForm');
-  const idInput     = $('recordId');
-  const closeBtn    = $('closeModalBtn');
-  const delBtn      = $('editDeleteBtn');
-  const submitBtn   = $('submitBtn');
-  const modalTitle  = $('modalTitle');
-  const countPill   = $('countPill');
-  const linksBox    = $('linksContainer');
+  const overlay  = $('modalOverlay');
+  const form     = $('recordForm');
+  const idInput  = $('recordId');
+  const modalTit = $('modalTitle');
+  const linksBox = $('linksContainer');
+  const countPill= $('countPill');
+  const addBtn   = $('openAddBtn');
 
-  if (!addBtn || !overlay || !form) return;
+  if (!overlay || !form) return;
 
-  // ---------- helpers ----------
-  const val  = (id) => ($(id) ? $(id).value : '');
-  const text = (id) => ($(id) ? $(id).value.trim() : '');
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const sanitize = (s) => String(s ?? '');
-
-  function parseCountPill(){
-    const m = (countPill?.textContent || '').match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : NaN;
-  }
-  function setCountPill(n){
-    if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`;
-  }
-
-  function lastRenderedId(){
-    const rows = document.querySelectorAll('#dataTable tbody tr[data-id]');
+  // ----- helpers -----
+  function parseCount(){ const m=(countPill?.textContent||'').match(/(\d+)/); return m?parseInt(m[1],10):NaN; }
+  function setCount(n){ if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`; }
+  function lastDomId(){
+    const rows = qa('#dataTable tbody tr[data-id]');
     if (!rows.length) return '';
-    return rows[rows.length - 1].dataset.id || '';
+    return rows[rows.length-1].dataset.id || '';
   }
   function nextIdFromDom(){
-    // Prefer DOM (no network). Falls back to random unique.
-    let candidate;
-    const lastId = lastRenderedId();
-    const m = lastId.match(/^(.*?)(\d+)$/);
-    if (m) {
-      const prefix = m[1], digits = m[2];
-      candidate = prefix + String(parseInt(digits, 10) + 1).padStart(digits.length, '0');
-    } else {
-      candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-    }
-    // Ensure not dup in DOM
-    let guard = 0;
-    while (document.querySelector(`#dataTable tbody tr[data-id="${CSS.escape(candidate)}"]`) && guard < 1000) {
-      const mm = candidate.match(/^(.*?)(\d+)$/);
-      if (mm) {
-        const p = mm[1], d = mm[2];
-        candidate = p + String(parseInt(d, 10) + 1).padStart(d.length, '0');
-      } else {
-        candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-      }
+    let cand; const last=lastDomId(); const m=last.match(/^(.*?)(\d+)$/);
+    if (m){ const p=m[1], d=m[2]; cand = p + String(parseInt(d,10)+1).padStart(d.length,'0'); }
+    else cand = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    let guard=0;
+    while (q(`#dataTable tbody tr[data-id="${CSS.escape(cand)}"]`) && guard<500){
+      const mm=cand.match(/^(.*?)(\d+)$/);
+      cand = mm ? (mm[1] + String(parseInt(mm[2],10)+1).padStart(mm[2].length,'0'))
+                : ('r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7));
       guard++;
     }
-    return candidate;
+    return cand;
   }
-
-  function appendRowLocal(rec){
-    const tb = document.querySelector('#dataTable tbody');
-    if (!tb) return null;
-
-    const tr = document.createElement('tr');
-    tr.dataset.local = 'true';
-    tr.dataset.id = rec.id || '';
-
-    function td(txt, cls){
-      const cell = document.createElement('td');
-      if (cls) cell.className = cls;
-      cell.textContent = sanitize(txt);
-      return cell;
-    }
+  function pill(txt){
+    const v=S(txt).trim();
+    const span=document.createElement('span');
+    const slug = v.toLowerCase().replace(/[^a-z0-9]+/g,'-') || 'blank';
+    span.className = `pill pill-${slug}`;
+    span.textContent = v;
+    span.setAttribute('data-value', v);
+    return span;
+  }
+  function td(nodeOrText, cls){
+    const td=document.createElement('td');
+    if (cls) td.className=cls;
+    if (nodeOrText instanceof Node) td.appendChild(nodeOrText);
+    else td.textContent = S(nodeOrText);
+    return td;
+  }
+  function actionsCell(id){
+    const tdA=document.createElement('td');
+    tdA.className='actions';
+    tdA.innerHTML = `
+      <a href="#" class="tiny view-link" data-id="${id}">View</a>
+      <span class="sep">•</span>
+      <a href="#" class="tiny danger delete-link" data-id="${id}">Delete</a>
+    `;
+    return tdA;
+  }
+  function appendRowImmediate(rec){
+    const tb=q('#dataTable tbody'); if (!tb) return;
+    const tr=document.createElement('tr');
+    tr.dataset.id=rec.id;
 
     tr.appendChild(td(rec.category, 'cat'));
     tr.appendChild(td(rec.phase, 'phase'));
     tr.appendChild(td(rec.activity, 'activity'));
     tr.appendChild(td(rec.outcome, 'outcome'));
-    tr.appendChild(td(rec.tiers?.tier_1   ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_1_1 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_1_2 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_2   ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_2_1 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_3   ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_3_1 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_3_2 ?? '', 'tier-col'));
-    tr.appendChild(td('', 'actions')); // real actions will appear after refresh
 
+    tr.appendChild(td(pill(rec.tiers?.tier_1),   'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_1_1), 'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_1_2), 'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_2),   'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_2_1), 'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_3),   'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_3_1), 'tier-col'));
+    tr.appendChild(td(pill(rec.tiers?.tier_3_2), 'tier-col'));
+
+    tr.appendChild(actionsCell(rec.id));
     tb.appendChild(tr);
-    return tr;
   }
 
-  async function backgroundReconcile(){
-    // Match Delete feel: a quick refresh or two, no heavy polling
-    try { await window.LegoSettings?.refresh?.(); } catch {}
-    await sleep(200);
-    try { await window.LegoSettings?.refresh?.(); } catch {}
-  }
+  // Make View/Delete work immediately for appended rows (delegated)
+  (function bindDelegatesOnce(){
+    if (document.__legoDelegatesBound) return;
+    document.__legoDelegatesBound = true;
 
-  // ---------- modal open/close ----------
-  function openAddModal(){
-    try { form.reset(); } catch {}
-    if (linksBox) linksBox.innerHTML = '';
-    if (idInput) idInput.value = '';
-    form.dataset.mode = 'create';
-    if (modalTitle) modalTitle.textContent = 'Add Record';
-    if (delBtn) delBtn.style.display = 'none';
-    if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
-    overlay.style.pointerEvents = 'auto';
-    overlay.setAttribute('aria-hidden','false');
-    const first = form.querySelector('input,select,textarea');
-    first && first.focus();
-  }
-  function closeModal(){
-    overlay.setAttribute('aria-hidden','true');
-    overlay.style.pointerEvents = 'none'; // prevent “stuck overlay” from blocking clicks
-    setTimeout(()=>{ overlay.style.pointerEvents = ''; }, 200);
-    delete form.dataset.mode;
-  }
-
-  // ---------- bind "+ Add record" robustly ----------
-  function bindAddButton(){
-    addBtn.setAttribute('type','button');
-    addBtn.removeAttribute('disabled');
-    addBtn.onclick = function(e){ e.preventDefault(); e.stopImmediatePropagation(); openAddModal(); };
-
-    function captureOpen(e){
-      const t = e.target && e.target.closest ? e.target.closest('#openAddBtn') : null;
-      if (!t) return;
+    // View
+    document.addEventListener('click', async (e)=>{
+      const a = e.target.closest && e.target.closest('.view-link'); if (!a) return;
       e.preventDefault();
-      e.stopImmediatePropagation();
-      openAddModal();
-    }
-    if (!document.__legoAddCaptureBound){
-      document.addEventListener('pointerdown', captureOpen, true);
-      document.addEventListener('click',       captureOpen, true);
-      document.__legoAddCaptureBound = true;
-    }
-  }
-  bindAddButton();
-
-  overlay.addEventListener('click', function(e){
-    if (!e.target.closest('.modal')) closeModal();
-  });
-  closeBtn && closeBtn.addEventListener('click', function(e){
-    e.preventDefault(); closeModal();
-  });
-  document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
-  });
-
-  // ---------- ADD-ONLY Save: instant row (like delete), then persist; rollback on failure ----------
-  if (!form.dataset.addOnlyBound){
-    form.dataset.addOnlyBound = 'true';
-
-    form.addEventListener('submit', async function onSubmitAdd(e){
-      const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-      if (!isCreate) return; // edit path is elsewhere
-
-      e.preventDefault();
-      e.stopImmediatePropagation();
-
-      if (!window.XmlGitHubStorage?.upsertOne){
-        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-        return;
+      const id = a.getAttribute('data-id')||'';
+      // Try current renderer first (it may already know about it), else fetch
+      let rec = (window.__legoLocalRecords && window.__legoLocalRecords[id]);
+      if (!rec && window.XmlGitHubStorage?.load){
+        try{ const all=await XmlGitHubStorage.load(); rec=all.find(r=>r.id===id); }catch{}
       }
-      if (!XmlGitHubStorage.hasToken?.()){
-        alert('Write disabled: please login with a valid GitHub token first.');
-        return;
+      if (!rec) return;
+      const detailsOverlay=$('detailsOverlay'), body=$('detailsBody');
+      if (detailsOverlay && body){
+        body.innerHTML = `
+          <div class="stack">
+            <div><strong>Category:</strong> ${S(rec.category)}</div>
+            <div><strong>Phase:</strong> ${S(rec.phase)}</div>
+            <div><strong>Activity:</strong> ${S(rec.activity)}</div>
+            <div><strong>Outcome:</strong> ${S(rec.outcome)}</div>
+            <div><strong>Presentation Owner:</strong> ${S(rec.presentationOwner)}</div>
+            <div><strong>Content Owner:</strong> ${S(rec.contentOwner)}</div>
+            <div><strong>Notes:</strong> ${S(rec.notes)}</div>
+            <div><strong>Links:</strong> ${(rec.links||[]).map(l=>`<a href="${S(l.url)}" target="_blank" rel="noopener">${S(l.label||l.url)}</a>`).join(' • ') || '—'}</div>
+          </div>`;
+        detailsOverlay.setAttribute('aria-hidden','false');
+        $('closeDetailsBtn')?.addEventListener('click', ()=>detailsOverlay.setAttribute('aria-hidden','true'), {once:true});
+        $('detailsEditBtn')?.addEventListener('click', ()=>{
+          detailsOverlay.setAttribute('aria-hidden','true');
+          if (idInput) idInput.value = rec.id;
+          if (modalTit) modalTit.textContent = 'Edit Record';
+          $('editDeleteBtn')?.style && ( $('editDeleteBtn').style.display = '' );
+          const set=(i,v)=>{ const el=$(i); if (el) el.value=v||''; };
+          set('category',rec.category); set('phase',rec.phase); set('activity',rec.activity); set('outcome',rec.outcome);
+          set('presentationOwner',rec.presentationOwner); set('contentOwner',rec.contentOwner); set('notes',rec.notes);
+          set('tier_1',rec.tiers?.tier_1); set('tier_1_1',rec.tiers?.tier_1_1); set('tier_1_2',rec.tiers?.tier_1_2);
+          set('tier_2',rec.tiers?.tier_2); set('tier_2_1',rec.tiers?.tier_2_1); set('tier_3',rec.tiers?.tier_3);
+          set('tier_3_1',rec.tiers?.tier_3_1); set('tier_3_2',rec.tiers?.tier_3_2);
+          if (linksBox){
+            linksBox.innerHTML=''; (rec.links||[]).forEach(l=>{
+              const row=document.createElement('div'); row.className='link-row';
+              row.innerHTML = `<input class="link-label" placeholder="Label" value="${S(l.label)}" />
+                               <input class="link-url" placeholder="https://" value="${S(l.url)}" />`;
+              linksBox.appendChild(row);
+            });
+          }
+          overlay.setAttribute('aria-hidden','false'); form.dataset.mode='edit';
+        }, {once:true});
+        $('detailsDeleteBtn')?.addEventListener('click', async ()=>{
+          detailsOverlay.setAttribute('aria-hidden','true');
+          try{
+            const row = q(`#dataTable tbody tr[data-id="${CSS.escape(id)}"]`);
+            if (row?.parentNode) row.parentNode.removeChild(row);
+            const c=parseCount(); if (!isNaN(c)) setCount(Math.max(0,c-1));
+            await XmlGitHubStorage.deleteOne(id);
+            try{ await window.LegoSettings?.refresh?.(); }catch{}
+          }catch(err){ console.error(err); alert('Delete failed: '+(err?.message||err)); }
+        }, {once:true});
       }
+    });
 
-      // Build the record
-      const record = {
-        id: nextIdFromDom(),
-        category: val('category'),
-        phase: val('phase'),
-        activity: text('activity'),
-        outcome: text('outcome'),
-        presentationOwner: text('presentationOwner'),
-        contentOwner: text('contentOwner'),
-        notes: text('notes'),
-        links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
-          label: row.querySelector('.link-label')?.value || '',
-          url:   row.querySelector('.link-url')?.value   || ''
-        })),
-        tiers: {
-          tier_1:   val('tier_1'),
-          tier_1_1: val('tier_1_1'),
-          tier_1_2: val('tier_1_2'),
-          tier_2:   val('tier_2'),
-          tier_2_1: val('tier_2_1'),
-          tier_3:   val('tier_3'),
-          tier_3_1: val('tier_3_1'),
-          tier_3_2: val('tier_3_2')
+    // Delete directly from table
+    document.addEventListener('click', async (e)=>{
+      const a=e.target.closest && e.target.closest('.delete-link'); if (!a) return;
+      e.preventDefault(); const id=a.getAttribute('data-id')||'';
+      const row=q(`#dataTable tbody tr[data-id="${CSS.escape(id)}"]`);
+      if (row?.parentNode) row.parentNode.removeChild(row);
+      const c=parseCount(); if (!isNaN(c)) setCount(Math.max(0,c-1));
+      try{ await XmlGitHubStorage.deleteOne(id); try{ await window.LegoSettings?.refresh?.(); }catch{} }
+      catch(err){ console.error(err); alert('Delete failed: '+(err?.message||err)); }
+    });
+  })();
+
+  // ----- 1) Capture Add form submission to snapshot data & ensure the ID we want -----
+  window.__legoLocalRecords = window.__legoLocalRecords || Object.create(null);
+  let pendingAdd = null;
+
+  form.addEventListener('submit', (e)=>{
+    // Only for ADD mode (not edit): your existing edit save logic remains untouched
+    const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
+    if (!isCreate) return;
+
+    // Build the *exact* record we want to appear in the table
+    const rec = {
+      id: nextIdFromDom(), // pre-pick id so save and UI match
+      category: q('#category')?.value || '',
+      phase: q('#phase')?.value || '',
+      activity: q('#activity')?.value?.trim() || '',
+      outcome: q('#outcome')?.value?.trim() || '',
+      presentationOwner: q('#presentationOwner')?.value?.trim() || '',
+      contentOwner: q('#contentOwner')?.value?.trim() || '',
+      notes: q('#notes')?.value?.trim() || '',
+      links: qa('#linksContainer .link-row').map(row => ({
+        label: row.querySelector('.link-label')?.value || '',
+        url:   row.querySelector('.link-url')?.value   || ''
+      })),
+      tiers: {
+        tier_1:   q('#tier_1')?.value || '',
+        tier_1_1: q('#tier_1_1')?.value || '',
+        tier_1_2: q('#tier_1_2')?.value || '',
+        tier_2:   q('#tier_2')?.value || '',
+        tier_2_1: q('#tier_2_1')?.value || '',
+        tier_3:   q('#tier_3')?.value || '',
+        tier_3_1: q('#tier_3_1')?.value || '',
+        tier_3_2: q('#tier_3_2')?.value || ''
+      }
+    };
+
+    // Ensure your existing save code (which reads #recordId) uses THIS id
+    if (idInput) idInput.value = rec.id;
+
+    // Save for after-close append
+    pendingAdd = rec;
+
+    // Do NOT preventDefault — let your current handler save & close the modal
+    // (We just observe the modal closing to append the row)
+  }, true); // capture to run before your existing handler
+
+  // ----- 2) When modal closes (aria-hidden="true") after save, append row instantly -----
+  const mo = new MutationObserver(async (mlist)=>{
+    for (const m of mlist){
+      if (m.type==='attributes' && m.attributeName==='aria-hidden'){
+        const nowHidden = overlay.getAttribute('aria-hidden') === 'true';
+        if (nowHidden && pendingAdd){
+          const rec = pendingAdd; pendingAdd = null;
+
+          // Add row immediately with pills + actions, bump count
+          appendRowImmediate(rec);
+          const c=parseCount(); if (!isNaN(c)) setCount(c+1);
+
+          // Keep local cache so View/Delete work immediately
+          window.__legoLocalRecords[rec.id] = rec;
+
+          // Gentle reconcile so your canonical renderer rebinds everything
+          try{ await window.LegoSettings?.refresh?.(); }catch{}
+          setTimeout(()=>{ try{ window.LegoSettings?.refresh?.(); }catch{} }, 200);
         }
-      };
-
-      // Requireds
-      if (!record.category || !record.phase || !record.activity || !record.outcome){
-        alert('Please complete Category, Phase, Activity, and Outcome.');
-        return;
       }
+    }
+  });
+  mo.observe(overlay, { attributes:true, attributeFilter:['aria-hidden'] });
 
-      const prevLabel = submitBtn ? submitBtn.textContent : '';
-      if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
-
-      // 🔹 Instant UI change (like Delete): append row + bump count now
-      const beforeCount = parseCountPill();
-      const tempRow = appendRowLocal(record);
-      if (!isNaN(beforeCount)) setCountPill(beforeCount + 1);
-
-      try{
-        // Persist to XML; if this throws, we rollback below
-        await XmlGitHubStorage.upsertOne(record);
-
-        // Success: close modal, then background reconcile (quick, like delete)
-        closeModal();
-        backgroundReconcile();
-
-      }catch(err){
-        // ❌ Rollback the optimistic UI (remove row, restore count)
-        if (tempRow && tempRow.parentNode) tempRow.parentNode.removeChild(tempRow);
-        if (!isNaN(beforeCount)) setCountPill(beforeCount);
-        console.error(err);
-        alert('Save failed: ' + (err?.message || err));
-      }finally{
-        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-        // Ensure the next click opens Add mode again and button stays responsive
-        if (idInput) idInput.value = '';
-        if (delBtn)  delBtn.style.display = 'none';
-        if (modalTitle) modalTitle.textContent = 'Add Record';
-        bindAddButton();
-      }
-    }, true);
+  // Safety: ensure "+ Add record" always reopens in Add mode
+  if (addBtn){
+    addBtn.addEventListener('click', ()=>{
+      if (modalTit) modalTit.textContent = 'Add Record';
+      if (idInput) idInput.value = '';
+      $('editDeleteBtn')?.style && ( $('editDeleteBtn').style.display = 'none' );
+      form.dataset.mode = 'create';
+    });
   }
 })();
 </script>
+
 
 
   <!-- CSS tip (your theme likely already has this):
@@ -863,6 +868,7 @@
 
 </body>
 </html>
+
 
 
 
