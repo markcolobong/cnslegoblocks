@@ -550,7 +550,7 @@
   })();
   </script>
 
- <!-- ADD RECORD: stand-alone (Save -> upsertOne -> robust refresh; always 'Add' mode next time) -->
+ <!-- ADD RECORD: Save -> optimistic append -> robust refresh; Add button always responsive -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
@@ -568,6 +568,7 @@
 
   if (!addBtn || !overlay || !form) return;
 
+  // ---- helpers ----
   const val  = (id) => ($(id) ? $(id).value : '');
   const text = (id) => ($(id) ? $(id).value.trim() : '');
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -577,33 +578,59 @@
     return m ? parseInt(m[1], 10) : NaN;
   }
 
-  async function robustRefresh(expectedCount){
-    // Try a few times to beat GitHub content propagation/caching
-    const attempts = [0, 150, 400, 800, 1400]; // ms
-    for (let i=0; i<attempts.length; i++){
-      try { await window.LegoSettings?.refresh?.(); } catch {}
-      await sleep(i === 0 ? 50 : attempts[i]); // tiny wait after refresh
-      const current = parseCountPill();
-      if (!isNaN(current) && current === expectedCount) return true;
+  function sanitize(s){ return String(s ?? ''); }
+
+  function optimisticAppendRow(rec){
+    // Create a lightweight row so the user sees it immediately.
+    const tb = document.querySelector('#dataTable tbody');
+    if (!tb) return;
+
+    const tr = document.createElement('tr');
+    tr.dataset.temp = 'true'; // marker until refresh replaces it
+    tr.dataset.id = rec.id || '';
+
+    function td(txt, cls){
+      const cell = document.createElement('td');
+      if (cls) cell.className = cls;
+      cell.textContent = sanitize(txt);
+      return cell;
     }
-    return false;
+
+    tr.appendChild(td(rec.category, 'cat'));
+    tr.appendChild(td(rec.phase, 'phase'));
+    tr.appendChild(td(rec.activity, 'activity'));
+    tr.appendChild(td(rec.outcome, 'outcome'));
+    tr.appendChild(td(rec.tiers?.tier_1   ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_1_1 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_1_2 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_2   ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_2_1 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_3   ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_3_1 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_3_2 ?? '', 'tier-col'));
+
+    const actions = document.createElement('td');
+    actions.className = 'actions';
+    // Keep it simple; real actions will appear after refresh renders
+    const badge = document.createElement('span');
+    badge.className = 'muted';
+    badge.textContent = 'Saving…';
+    actions.appendChild(badge);
+    tr.appendChild(actions);
+
+    tb.appendChild(tr);
   }
 
-  function openAddModal(){
-    try { form.reset(); } catch {}
-    if (linksBox) linksBox.innerHTML = '';
-    if (idInput) idInput.value = '';
-    form.dataset.mode = 'create';
-    if (modalTitle) modalTitle.textContent = 'Add Record';
-    if (delBtn) delBtn.style.display = 'none';
-    if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
-    overlay.setAttribute('aria-hidden','false'); // centered by CSS
-    const first = form.querySelector('input,select,textarea');
-    first && first.focus();
-  }
-  function closeModal(){
-    overlay.setAttribute('aria-hidden','true');
-    delete form.dataset.mode;
+  async function robustRefresh(expectedCount){
+    // Try multiple passes to beat GitHub propagation/caching.
+    const delays = [0, 120, 260, 520, 1000, 1600]; // ms
+    for (let i = 0; i < delays.length; i++){
+      try { await window.LegoSettings?.refresh?.(); } catch {}
+      await sleep(delays[i]);
+      const cur = parseCountPill();
+      if (!isNaN(expectedCount) && cur === expectedCount) return true;
+    }
+    return false;
   }
 
   function nextUniqueId(all){
@@ -631,16 +658,53 @@
     return candidate;
   }
 
-  // Open modal on Add (no writes)
-  addBtn.setAttribute('type','button');
-  addBtn.removeAttribute('disabled');
-  addBtn.addEventListener('click', function(e){
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    openAddModal();
-  }, true); // capture beats other listeners
+  // ---- modal open/close (and make sure overlay never blocks clicks after close) ----
+  function openAddModal(){
+    try { form.reset(); } catch {}
+    if (linksBox) linksBox.innerHTML = '';
+    if (idInput) idInput.value = '';
+    form.dataset.mode = 'create';
+    if (modalTitle) modalTitle.textContent = 'Add Record';
+    if (delBtn) delBtn.style.display = 'none';
+    if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
+    overlay.style.pointerEvents = 'auto';
+    overlay.setAttribute('aria-hidden','false'); // CSS centers and shows
+    const first = form.querySelector('input,select,textarea');
+    first && first.focus();
+  }
+  function closeModal(){
+    overlay.setAttribute('aria-hidden','true');
+    overlay.style.pointerEvents = 'none';  // ensure overlay can't trap clicks while hiding
+    // clear after a moment (so future opens use stylesheet defaults)
+    setTimeout(()=>{ overlay.style.pointerEvents = ''; }, 200);
+    delete form.dataset.mode;
+  }
 
-  // Close interactions
+  // ---- bind "+ Add record" robustly ----
+  function bindAddButton(){
+    // direct handler
+    addBtn.setAttribute('type','button');
+    addBtn.removeAttribute('disabled');
+    addBtn.onclick = function(e){ e.preventDefault(); e.stopImmediatePropagation(); openAddModal(); };
+
+    // capture-phase fallbacks to beat any other listeners swallowing the event
+    function captureOpen(e){
+      const t = e.target && e.target.closest ? e.target.closest('#openAddBtn') : null;
+      if (!t) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openAddModal();
+    }
+    // register only once (idempotent guards)
+    if (!document.__legoAddCaptureBound){
+      document.addEventListener('pointerdown', captureOpen, true);
+      document.addEventListener('click',       captureOpen, true);
+      document.__legoAddCaptureBound = true;
+    }
+  }
+  bindAddButton();
+
+  // Close via overlay click, button, or ESC
   overlay.addEventListener('click', function(e){
     if (!e.target.closest('.modal')) closeModal();
   });
@@ -651,13 +715,13 @@
     if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
   });
 
-  // ADD-ONLY Save: upsertOne + robust UI refresh; Edit is handled elsewhere
+  // ---- ADD-ONLY Save: optimistic append + upsertOne + robust refresh ----
   if (!form.dataset.addOnlyBound){
     form.dataset.addOnlyBound = 'true';
 
     form.addEventListener('submit', async function onSubmitAdd(e){
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-      if (!isCreate) return; // let your EDIT path handle edits
+      if (!isCreate) return; // edit path is handled elsewhere
 
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -699,7 +763,7 @@
         }
       };
 
-      // Requireds
+      // Required fields
       if (!record.category || !record.phase || !record.activity || !record.outcome){
         alert('Please complete Category, Phase, Activity, and Outcome.');
         return;
@@ -709,36 +773,30 @@
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
       try{
-        // Generate id from current tail, then UPSERT (appends if new)
+        // Generate id from current tail, then UPSERT (append if new)
         const all = await XmlGitHubStorage.load();
         record.id = nextUniqueId(all);
+
+        // Optimistic row so it appears instantly
+        optimisticAppendRow(record);
+        // Increment pill immediately
+        if (!isNaN(beforeCount) && countPill) countPill.textContent = `${beforeCount + 1} records`;
+
+        // Persist to XML
         await XmlGitHubStorage.upsertOne(record);
 
-        // Close modal first (prevents scroll/overlay issues)
+        // Close modal ASAP to avoid overlay quirks
         closeModal();
 
-        // 🔄 Try to reflect immediately (and tolerate propagation)
+        // Try to reflect authoritative table view quickly
         const expected = isNaN(beforeCount) ? NaN : (beforeCount + 1);
-        let updated = false;
-        if (!isNaN(expected)) {
-          updated = await robustRefresh(expected);
-        } else {
-          // If pill can't be parsed, still try a couple refresh calls
-          try { await window.LegoSettings?.refresh?.(); } catch {}
-          await sleep(250);
-          try { await window.LegoSettings?.refresh?.(); } catch {}
-        }
+        const ok = await robustRefresh(expected);
 
-        // As a last resort, force a one-time reload so user never has to refresh manually
-        if (!updated) {
-          window.location.reload();
-          return;
-        }
+        // Even if refresh is still catching up, the optimistic row is already visible.
+        // Ensure button stays responsive after any path:
+        bindAddButton();
 
-        // Ensure next click is Add mode again
-        if (idInput) idInput.value = '';
-        if (delBtn)  delBtn.style.display = 'none';
-        if (modalTitle) modalTitle.textContent = 'Add Record';
+        // Reset button label
         if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }catch(err){
         console.error(err);
@@ -749,6 +807,7 @@
   }
 })();
 </script>
+
 
 
 
@@ -822,6 +881,7 @@
 
 </body>
 </html>
+
 
 
 
