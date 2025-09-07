@@ -227,7 +227,9 @@
   <script src="assets/js/script.js"></script>
 
 <script>
-/* Public XML loader: same schema, case-insensitive + namespace-safe */
+/* Public XML loader for:
+   <Record> … <Category> … <Tiers><T name="tier_1">Applicable</T> … </Tiers> … </Record>
+   (case-insensitive tag names, no writes; UI deletes remain local) */
 (function(){
   const XML_SOURCES = [
     'https://cdn.jsdelivr.net/gh/markcolobong/cnslegoblocks@main/data/records.xml',
@@ -238,71 +240,82 @@
 
   let SETTINGS = null;
 
-  /* helpers: case-insensitive tag matching using localName */
   const lc = s => String(s||'').toLowerCase();
-  const all = (root) => Array.from(root.getElementsByTagName('*'));
-  const byTag = (root, tag) => all(root).filter(el => lc(el.localName||el.tagName) === lc(tag));
-  const firstChildText = (el, tag) => {
+  const byTag = (root, tag) =>
+    Array.from(root.getElementsByTagName('*')).filter(el => lc(el.localName||el.tagName) === lc(tag));
+  const firstText = (el, tag) => {
     const hit = Array.from(el.children||[]).find(c => lc(c.localName||c.tagName) === lc(tag));
     return hit ? (hit.textContent||'').trim() : '';
   };
+
+  function parseTiers(recordEl){
+    const tiers = { tier_1:'', tier_1_1:'', tier_1_2:'', tier_2:'', tier_2_1:'', tier_3:'', tier_3_1:'', tier_3_2:'' };
+    const tiersNode = byTag(recordEl, 'Tiers')[0];
+    if (!tiersNode) return tiers;
+
+    const tNodes = Array.from(tiersNode.children || []).filter(n => lc(n.localName||n.tagName) === 't');
+    for (const t of tNodes){
+      const name = (t.getAttribute('name') || '').trim();            // e.g., "tier_1_1"
+      if (!name) continue;
+      const key = lc(name);
+      if (Object.prototype.hasOwnProperty.call(tiers, key)) {
+        tiers[key] = (t.textContent || '').trim();
+      }
+    }
+    return tiers;
+  }
 
   function parseRecords(xmlText){
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('XML parse error');
 
-    const recNodes = byTag(doc, 'record');            // <record> (case-insensitive)
-    const out = recNodes.map(rec => {
-      // exact field names you already use (case-insensitive)
-      const tiers = {
-        tier_1:   firstChildText(rec,'tier_1'),
-        tier_1_1: firstChildText(rec,'tier_1_1'),
-        tier_1_2: firstChildText(rec,'tier_1_2'),
-        tier_2:   firstChildText(rec,'tier_2'),
-        tier_2_1: firstChildText(rec,'tier_2_1'),
-        tier_3:   firstChildText(rec,'tier_3'),
-        tier_3_1: firstChildText(rec,'tier_3_1'),
-        tier_3_2: firstChildText(rec,'tier_3_2')
-      };
+    // Records may be <Record> or wrapped in <Records>—handle both
+    let recNodes = byTag(doc, 'Record');
+    if (!recNodes.length) {
+      const container = byTag(doc, 'Records')[0];
+      if (container) recNodes = Array.from(container.children || []);
+    }
 
-      // optional nested collections
-      const linksNode = byTag(rec,'links')[0];
+    const out = recNodes.map(rec => {
+      const linksNode = byTag(rec,'Links')[0];
       const links = linksNode
         ? Array.from(linksNode.children||[])
-            .filter(c => lc(c.localName||c.tagName)==='link')
-            .map(l => ({ label: firstChildText(l,'label'), url: firstChildText(l,'url') }))
+            .filter(l => lc(l.localName||l.tagName)==='link')
+            .map(l => ({ label: firstText(l,'Label'), url: firstText(l,'Url') }))
             .filter(x => x.label || x.url)
         : [];
 
-      const attsNode = byTag(rec,'attachments')[0];
+      const attsNode = byTag(rec,'Attachments')[0];
       const attachments = attsNode
         ? Array.from(attsNode.children||[])
-            .filter(c => lc(c.localName||c.tagName)==='file')
-            .map(f => ({ name: firstChildText(f,'name'), url: firstChildText(f,'url') }))
+            .filter(f => lc(f.localName||f.tagName)==='file')
+            .map(f => ({ name: firstText(f,'Name'), url: firstText(f,'Url') }))
             .filter(x => x.name || x.url)
         : [];
 
       return {
-        id: (rec.getAttribute('id') || firstChildText(rec,'id') || '').trim(),
-        category: firstChildText(rec,'category'),
-        phase: firstChildText(rec,'phase'),
-        activity: firstChildText(rec,'activity'),
-        outcome: firstChildText(rec,'outcome'),
-        presentationOwner: firstChildText(rec,'presentationOwner'),
-        contentOwner: firstChildText(rec,'contentOwner'),
-        notes: firstChildText(rec,'notes'),
-        links, attachments, tiers
+        id: (rec.getAttribute('id') || firstText(rec,'Id') || '').trim(),
+        category: firstText(rec,'Category'),
+        phase: firstText(rec,'Phase'),
+        activity: firstText(rec,'Activity'),
+        outcome: firstText(rec,'Outcome'),
+        presentationOwner: firstText(rec,'PresentationOwner'),
+        contentOwner: firstText(rec,'ContentOwner'),
+        notes: firstText(rec,'Notes'),
+        links, attachments,
+        tiers: parseTiers(rec)
       };
     });
 
-    return out;
+    // keep only meaningful rows
+    return out.filter(r => r.category || r.activity || r.outcome);
   }
 
   async function fetchXML(){
     let lastErr;
     for (const url of XML_SOURCES){
       try{
-        const res = await fetch(url + '?_=' + Date.now(), { cache: 'no-store' }); // simple GET (no preflight)
+        const res = await fetch(url + '?_=' + Date.now(), { cache: 'no-store' }); // simple GET
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const xml = await res.text();
         const arr = parseRecords(xml);
@@ -311,7 +324,7 @@
         return SETTINGS;
       }catch(e){ lastErr = e; }
     }
-    // fallback to cache
+    // cache fallback
     try { const v = localStorage.getItem(LIVE_KEY); if (v) { SETTINGS = JSON.parse(v); return SETTINGS; } } catch {}
     try { const v = localStorage.getItem(OLD_KEY);  if (v) { SETTINGS = JSON.parse(v); return SETTINGS; } } catch {}
     if (lastErr) console.warn('records.xml fetch/parse issue:', lastErr);
@@ -319,18 +332,15 @@
     return SETTINGS;
   }
 
-  // public hooks (used by your resolver)
+  // public hooks used by your resolver
   window.ensureFreshRecords = () => fetchXML();
   window.loadSettings = () =>
     SETTINGS
     || (function(){ try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{} try{ const v = localStorage.getItem(OLD_KEY); if (v) return JSON.parse(v); }catch{} return []; })();
 
-  // prefetch on load
   document.addEventListener('DOMContentLoaded', () => { fetchXML(); });
 })();
 </script>
-
-
 
   <!-- Resolver logic -->
   <script>
@@ -673,6 +683,7 @@
   </script>
 </body>
 </html>
+
 
 
 
