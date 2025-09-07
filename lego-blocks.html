@@ -615,7 +615,7 @@
     `;
     return tdA;
   }
-  <script>
+
 // REPLACE your existing appendRowImmediate with THIS version.
 function appendRowImmediate(rec){
   const tb  = document.querySelector('#dataTable tbody');
@@ -724,7 +724,6 @@ function appendRowImmediate(rec){
 
   tb.appendChild(tr);
 }
-</script>
 
   // Make View/Delete work immediately for appended rows (delegated)
   (function bindDelegatesOnce(){
@@ -956,6 +955,7 @@ function appendRowImmediate(rec){
 
 </body>
 </html>
+
 
 
 
