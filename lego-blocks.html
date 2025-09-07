@@ -891,32 +891,29 @@
        .modal-overlay[aria-hidden="true"] { display:none; }
        .modal-overlay[aria-hidden="false"] { display:block; } /* or flex */
   -->
-<!-- Force "Add record" to open the modal (no validations / no writes) -->
+
+<!-- Force "+ Add record" to always open the modal, overriding any blockers -->
 <script>
 (function(){
-  document.addEventListener('DOMContentLoaded', function(){
-    const btn      = document.getElementById('openAddBtn');
-    const overlay  = document.getElementById('modalOverlay');
-    const closeBtn = document.getElementById('closeModalBtn');
-    const form     = document.getElementById('recordForm');
-    const idInput  = document.getElementById('recordId');
+  function bindAddRecordOpener(){
+    var btn      = document.getElementById('openAddBtn');
+    var overlay  = document.getElementById('modalOverlay');
+    var form     = document.getElementById('recordForm');
+    var idInput  = document.getElementById('recordId');
+    var closeBtn = document.getElementById('closeModalBtn');
 
-    if (!btn || !overlay) {
-      console.warn('[AddRecord] Button or modal not found');
+    if (!btn || !overlay || !form) {
+      console.warn('[AddRecord] Missing required elements:', { btn: !!btn, overlay: !!overlay, form: !!form });
       return;
     }
 
     function openModal(){
-      // ensure CREATE mode (do not pre-set an id)
-      if (form) form.reset();
-      if (idInput) idInput.value = '';
-
-      overlay.style.display = '';
+      try { form.reset(); } catch {}
+      if (idInput) idInput.value = '';                 // ensure CREATE mode
+      overlay.style.display = '';                      // show (let CSS decide, typically block/flex)
       overlay.setAttribute('aria-hidden','false');
-
-      // focus the first useful field
-      const first = form?.querySelector('input, select, textarea');
-      first?.focus();
+      var first = form.querySelector('input,select,textarea');
+      if (first) first.focus();
     }
 
     function closeModal(){
@@ -924,36 +921,56 @@
       overlay.setAttribute('aria-hidden','true');
     }
 
-    // Open modal on click — always.
+    // Make sure the button can be clicked
+    btn.setAttribute('type','button');
+    btn.removeAttribute('disabled');
+
+    // 1) Capture-phase handler runs BEFORE any other handlers and takes control
     btn.addEventListener('click', function(e){
       e.preventDefault();
+      e.stopImmediatePropagation(); // stop other listeners from hijacking/aborting
       openModal();
-    });
+    }, true);
 
-    // Close with "Close" button
-    closeBtn?.addEventListener('click', function(e){
+    // 2) Also set the onclick property as a fallback (some libs rebind listeners)
+    btn.onclick = function(e){
       e.preventDefault();
-      closeModal();
-    });
+      e.stopImmediatePropagation();
+      openModal();
+    };
 
-    // Close only when clicking true backdrop (clicks inside the dialog won't close it)
+    // Close only on backdrop click (not when clicking inside the dialog)
     overlay.addEventListener('click', function(e){
       if (!e.target.closest('.modal')) closeModal();
     });
 
-    // Close with Escape
+    // Close button
+    closeBtn && closeBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      closeModal();
+    });
+
+    // ESC to close
     document.addEventListener('keydown', function(e){
-      if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false'){
+      if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') {
         closeModal();
       }
     });
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindAddRecordOpener);
+  } else {
+    bindAddRecordOpener();
+  }
 })();
 </script>
+
 
   
 </body>
 </html>
+
 
 
 
