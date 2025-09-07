@@ -862,8 +862,56 @@ if (actionsCell){
 })();
 </script>
 
+<script>
+(function(){
+  async function forceFreshUI(reason){
+    try {
+      // Load from the last commit if we have it (commit-aware), else normal
+      const recs = (window.XmlGitHubStorage?.loadFreshPreferringSha)
+        ? await XmlGitHubStorage.loadFreshPreferringSha()
+        : (await (window.XmlGitHubStorage?.load?.() || []));
+
+      // Clear any search filter so full list is visible (mirrors your manual workaround)
+      const search = document.getElementById('search');
+      if (search) {
+        search.value = '';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Ask your existing code to repaint with fresh data
+      if (window.LegoSettings?.refresh) {
+        try { await LegoSettings.refresh(); } catch {}
+      }
+
+      // Safety: kick a follow-up repaint shortly after (defeats any stale overpaint)
+      setTimeout(() => { try { window.LegoSettings?.refresh?.(); } catch {} }, 150);
+    } catch {}
+  }
+
+  // After a successful save (file definitely updated)
+  window.addEventListener('lego:recordsSaved', () => forceFreshUI('saved'));
+
+  // On first unlock/login
+  if (window.__authGuard && typeof __authGuard.unlock === 'function') {
+    const _u = __authGuard.unlock.bind(__authGuard);
+    __authGuard.unlock = function(){
+      const r = _u();
+      forceFreshUI('unlock');
+      return r;
+    };
+  }
+
+  // On page load / refresh / tab focus
+  document.addEventListener('DOMContentLoaded', () => forceFreshUI('domready'));
+  window.addEventListener('pageshow', () => forceFreshUI('pageshow'));
+  window.addEventListener('focus', () => forceFreshUI('focus'));
+})();
+</script>
+
+  
 </body>
 </html>
+
 
 
 
