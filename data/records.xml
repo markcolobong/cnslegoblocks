@@ -1050,25 +1050,4 @@
     <T name="tier_3_2">Not Applicable</T>
     </Tiers>
   </Record>
-  <Record id="rec_1757221455902_56">
-    <Category>Preparation</Category>
-    <Phase>PRE</Phase>
-    <Activity>hello i am working now</Activity>
-    <Outcome>yes you got it</Outcome>
-    <PresentationOwner>hi</PresentationOwner>
-    <ContentOwner>hi</ContentOwner>
-    <Notes>hi</Notes>
-    <Links>
-    </Links>
-    <Tiers>
-    <T name="tier_1">Applicable</T>
-    <T name="tier_1_1">Applicable</T>
-    <T name="tier_1_2">Applicable</T>
-    <T name="tier_2">Applicable</T>
-    <T name="tier_2_1">Applicable</T>
-    <T name="tier_3">Applicable</T>
-    <T name="tier_3_1">Applicable</T>
-    <T name="tier_3_2">Applicable</T>
-    </Tiers>
-  </Record>
 </Records>
