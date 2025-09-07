@@ -1282,10 +1282,10 @@
     </Tiers>
   </Record>
   <Record id="rec_1757229615993">
-    <Category>Group Meet</Category>
-    <Phase>POST</Phase>
-    <Activity>+add</Activity>
-    <Outcome>+mamc</Outcome>
+    <Category>Preparation</Category>
+    <Phase>PRE</Phase>
+    <Activity>NOPE it's not working again</Activity>
+    <Outcome>Nothing changing</Outcome>
     <PresentationOwner></PresentationOwner>
     <ContentOwner></ContentOwner>
     <Notes></Notes>
