@@ -227,157 +227,88 @@
   <script src="assets/js/script.js"></script>
 
 <script>
-/* Public XML loader (namespace-safe + flexible) */
+/* Minimal public XML loader — exact tag names, no normalization */
 (function(){
-  // CORS-friendly CDN first; raw as fallback
+  // Use CDN (CORS-friendly) then raw GH as fallback
   const XML_SOURCES = [
     'https://cdn.jsdelivr.net/gh/markcolobong/cnslegoblocks@main/data/records.xml',
     'https://raw.githubusercontent.com/markcolobong/cnslegoblocks/main/data/records.xml'
   ];
-  const LIVE_KEY = 'settings_records_live';
-  const OLD_KEY  = 'settings_records_v10';
+  const LIVE_KEY = 'settings_records_live';   // cache for end users
+  const OLD_KEY  = 'settings_records_v10';    // legacy local cache (your old data)
 
   let SETTINGS = null;
 
-  const lc = s => String(s||'').toLowerCase().trim();
-
-  // Helpers that are robust to XML namespaces (use localName)
-  const children = el => Array.from(el ? el.children : []);
-  const allEls   = doc => Array.from(doc.getElementsByTagName('*'));
-  const byNames  = (els, ...names) => {
-    const set = new Set(names.map(lc));
-    return els.filter(e => set.has(lc(e.localName || e.tagName)));
-  };
-  const firstText = (el, ...names) => {
-    // child element value by localName OR attribute fallback
-    for (const n of names) {
-      const nm = lc(n);
-      // child element
-      const c = children(el).find(ch => lc(ch.localName||ch.tagName) === nm);
-      if (c && c.textContent) return c.textContent.trim();
-      // attribute (id/name/code etc)
-      const av = el.getAttribute && (el.getAttribute(n) || el.getAttribute(n.toUpperCase()));
-      if (av) return String(av).trim();
-    }
-    return '';
-  };
-
-  function parseTiers(recEl){
-    const out = { tier_1:'', tier_1_1:'', tier_1_2:'', tier_2:'', tier_2_1:'', tier_3:'', tier_3_1:'', tier_3_2:'' };
-    const map = { '1':'tier_1','1.1':'tier_1_1','1.2':'tier_1_2','2':'tier_2','2.1':'tier_2_1','3':'tier_3','3.1':'tier_3_1','3.2':'tier_3_2' };
-
-    // 1) direct child elements like <tier_1>Applicable</tier_1>
-    Object.keys(out).forEach(k=>{
-      const hit = children(recEl).find(ch => {
-        const ln = lc(ch.localName || ch.tagName);
-        return ln === lc(k) || ln === lc(k.replace(/_/g,'-')) || ln === lc(k.replace('tier_','t'));
-      });
-      if (hit && hit.textContent) out[k] = hit.textContent.trim();
-    });
-
-    // 2) nested structure: <tiers><tier code="1.1">Applicable</tier>...</tiers>
-    const tiersContainer = children(recEl).find(ch => ['tiers','Tiers'].includes(ch.localName||ch.tagName));
-    const tierNodes = tiersContainer ? children(tiersContainer) : [];
-    tierNodes.forEach(tn=>{
-      const code = (tn.getAttribute('code') || tn.getAttribute('id') || tn.getAttribute('name') || '').trim();
-      const mkey = map[code];
-      if (mkey && tn.textContent) out[mkey] = tn.textContent.trim();
-    });
-
-    // 3) attribute style e.g. data-tier-1="Applicable"
-    Object.keys(out).forEach(k=>{
-      if (!out[k] && recEl.getAttribute) {
-        const cand = [
-          'data-' + k.replace(/_/g,'-'),
-          k, k.toUpperCase(),
-          k.replace(/_/g,'-'), k.replace('tier_','t')
-        ];
-        for (const a of cand){
-          const v = recEl.getAttribute(a);
-          if (v){ out[k] = String(v).trim(); break; }
-        }
-      }
-    });
-
-    return out;
+  function txt(parent, tag){
+    const el = parent.getElementsByTagName(tag)[0];
+    return el ? (el.textContent || '').trim() : '';
   }
 
-  function parseXmlToRecords(xmlText){
+  function parseRecords(xmlText){
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('XML parse error');
 
-    // Candidate record nodes by common names; namespace-safe
-    let candidates = byNames(allEls(doc), 'record','item','row','entry');
-    // If none matched, try direct children under a container like <records>...</records>
-    if (!candidates.length) {
-      const container = byNames(children(doc.documentElement), 'records','data','rows','items')[0];
-      if (container) candidates = children(container);
-    }
-    // As a last resort: choose elements that have several of the expected fields as children/attrs
-    if (!candidates.length) {
-      const fieldHints = new Set(['category','phase','activity','outcome']);
-      candidates = allEls(doc).filter(el=>{
-        const names = children(el).map(c=>lc(c.localName||c.tagName));
-        const attrNames = el.getAttributeNames ? el.getAttributeNames().map(lc) : [];
-        const score = [...names, ...attrNames].filter(n=>fieldHints.has(n)).length;
-        return score >= 2; // at least two hints
-      });
-    }
+    const recs = Array.from(doc.getElementsByTagName('record')).map(rec => {
+      // exact field names your resolver/export use
+      const tiers = {
+        tier_1:   txt(rec,'tier_1'),
+        tier_1_1: txt(rec,'tier_1_1'),
+        tier_1_2: txt(rec,'tier_1_2'),
+        tier_2:   txt(rec,'tier_2'),
+        tier_2_1: txt(rec,'tier_2_1'),
+        tier_3:   txt(rec,'tier_3'),
+        tier_3_1: txt(rec,'tier_3_1'),
+        tier_3_2: txt(rec,'tier_3_2')
+      };
 
-    const records = candidates.map(recEl=>{
-      const links = byNames(children(recEl), 'links','Links')
-        .flatMap(lcEl => children(lcEl))
-        .map(l => ({
-          label: firstText(l, 'label','name'),
-          url:   firstText(l, 'url','URL')
-        }))
-        .filter(x => x.label || x.url);
+      // optional links/attachments (kept as before; harmless if not present)
+      const linksNode = rec.getElementsByTagName('links')[0];
+      const links = linksNode
+        ? Array.from(linksNode.getElementsByTagName('link')).map(l => ({
+            label: txt(l,'label'), url: txt(l,'url')
+          })).filter(x => x.label || x.url)
+        : [];
 
-      const attachments = byNames(children(recEl), 'attachments','Attachments')
-        .flatMap(ac => children(ac))
-        .map(f => ({
-          name: firstText(f, 'name','label'),
-          url:  firstText(f, 'url','URL')
-        }))
-        .filter(x => x.name || x.url);
+      const attsNode = rec.getElementsByTagName('attachments')[0];
+      const attachments = attsNode
+        ? Array.from(attsNode.getElementsByTagName('file')).map(f => ({
+            name: txt(f,'name'), url: txt(f,'url')
+          })).filter(x => x.name || x.url)
+        : [];
 
       return {
-        id: firstText(recEl,'id') || (recEl.getAttribute && (recEl.getAttribute('id')||'')) || '',
-        category: firstText(recEl,'category','cat'),
-        phase:    firstText(recEl,'phase'),
-        activity: firstText(recEl,'activity','title','name'),
-        outcome:  firstText(recEl,'outcome','keyOutcome','message'),
-        presentationOwner: firstText(recEl,'presentationOwner'),
-        contentOwner:      firstText(recEl,'contentOwner'),
-        notes:             firstText(recEl,'notes','note'),
-        links,
-        attachments,
-        tiers: parseTiers(recEl)
+        id: (rec.getAttribute('id') || txt(rec,'id') || '').trim(),
+        category: txt(rec,'category'),
+        phase: txt(rec,'phase'),
+        activity: txt(rec,'activity'),
+        outcome: txt(rec,'outcome'),
+        presentationOwner: txt(rec,'presentationOwner'),
+        contentOwner: txt(rec,'contentOwner'),
+        notes: txt(rec,'notes'),
+        links, attachments, tiers
       };
     });
 
-    // Filter out obvious empties (no category AND no activity)
-    return records.filter(r => r.category || r.activity);
+    return recs;
   }
 
-  async function fetchFirstGood(){
+  async function fetchXML(){
     let lastErr;
     for (const url of XML_SOURCES){
       try{
-        const res = await fetch(url + '?_=' + Date.now(), { cache:'no-store' }); // simple GET (no preflight)
+        // simple GET, no custom headers → no preflight
+        const res = await fetch(url + '?_=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const xml = await res.text();
-        const arr = parseXmlToRecords(xml);
-        if (Array.isArray(arr) && arr.length) {
+        const arr = parseRecords(xml);
+        if (Array.isArray(arr)) {
           SETTINGS = arr;
           try { localStorage.setItem(LIVE_KEY, JSON.stringify(arr)); } catch {}
-          // console.debug('Loaded records:', arr.length, 'from', url);
           return arr;
         }
-        // If parsed but zero rows, keep trying the next source
       }catch(e){ lastErr = e; }
     }
-    // Fallback to cache if all sources failed or produced zero rows
+    // fallback to cache
     try { const v = localStorage.getItem(LIVE_KEY); if (v) { SETTINGS = JSON.parse(v); return SETTINGS; } } catch {}
     try { const v = localStorage.getItem(OLD_KEY);  if (v) { SETTINGS = JSON.parse(v); return SETTINGS; } } catch {}
     if (lastErr) console.warn('records.xml fetch/parse issue:', lastErr);
@@ -385,13 +316,13 @@
     return SETTINGS;
   }
 
-  // Public entry points used by your resolver
-  window.ensureFreshRecords = async () => { const arr = await fetchFirstGood(); return arr; };
+  // Public hooks used by your resolver
+  window.ensureFreshRecords = () => fetchXML();
   window.loadSettings = () => SETTINGS
-      || (function(){ try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{} try{ const v = localStorage.getItem(OLD_KEY); if (v) return JSON.parse(v); }catch{} return []; })();
+    || (function(){ try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{} try{ const v = localStorage.getItem(OLD_KEY); if (v) return JSON.parse(v); }catch{} return []; })();
 
-  // Prefetch on load
-  document.addEventListener('DOMContentLoaded', () => { window.ensureFreshRecords(); });
+  // Prefetch on page load
+  document.addEventListener('DOMContentLoaded', () => { fetchXML(); });
 })();
 </script>
 
@@ -738,5 +669,6 @@
   </script>
 </body>
 </html>
+
 
 
