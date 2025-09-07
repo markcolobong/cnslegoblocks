@@ -464,18 +464,17 @@
           cells[idx].innerHTML = '';
           cells[idx].textContent = S(val);
         };
-        const setTier = (idx, val) => {
-          if (!cells[idx]) return;
-          const cell = cells[idx];
-          let pill = cell.querySelector('.pill, .badge, .chip, span');
-          if (!pill){
-            cell.innerHTML = '';
-            cell.textContent = S(val);
-            return;
-          }
-          pill.textContent = S(val);
-          pill.setAttribute('data-value', S(val));
-        };
+const setTier = (idx, val) => {
+  if (!cells[idx]) return;
+  const cell = cells[idx];
+  // show ONLY a pill; clear any existing text/children
+  cell.innerHTML = '';
+  const pill = document.createElement('span');
+  pill.className = 'pill';
+  pill.setAttribute('data-value', S(val));
+  pill.textContent = S(val);
+  cell.appendChild(pill);
+};
 
         // 0..3 text
         setText(0, rec.category);
@@ -675,17 +674,17 @@
         cells[idx].innerHTML = '';
         cells[idx].textContent = S(val);
       };
-      const setTier = (idx, val) => {
-        if (!cells[idx]) return;
-        const cell = cells[idx];
-        let pill = cell.querySelector('.pill, .badge, .chip, span');
-        if (!pill){
-          cell.innerHTML = '';
-          cell.textContent = S(val);
-          return;
-        }
-        pill.textContent = S(val);
-        pill.setAttribute('data-value', S(val));
+const setTier = (idx, val) => {
+  if (!cells[idx]) return;
+  const cell = cells[idx];
+  // show ONLY a pill; clear any existing text/children
+  cell.innerHTML = '';
+  const pill = document.createElement('span');
+  pill.className = 'pill';
+  pill.setAttribute('data-value', S(val));
+  pill.textContent = S(val);
+  cell.appendChild(pill);
+};
       };
 
       setText(0, rec.category);
@@ -809,5 +808,6 @@
 
 </body>
 </html>
+
 
 
