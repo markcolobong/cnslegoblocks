@@ -393,18 +393,20 @@
     const form = $('recordForm');
     const idInput = $('recordId');
 
-    function openModalForCreate(){
-      if (!overlay) return;
-      if (form) form.reset();
-      if (idInput) idInput.value = '';
-      overlay.style.display = '';
-      overlay.setAttribute('aria-hidden','false');
-    }
-    function closeModal(){
-      if (!overlay) return;
-      overlay.style.display = 'none';
-      overlay.setAttribute('aria-hidden','true');
-    }
+   function openModalForCreate(){
+  if (!overlay) return;
+  if (form) form.reset();
+  if (idInput) idInput.value = '';
+  overlay.setAttribute('aria-hidden','false');
+  overlay.classList.add('open');        // <-- add
+}
+
+function closeModal(){
+  if (!overlay) return;
+  overlay.setAttribute('aria-hidden','true');
+  overlay.classList.remove('open');     // <-- add
+}
+
 
     addBtn?.addEventListener('click', (e)=>{
       e.preventDefault();
@@ -502,3 +504,4 @@
   </script>
 </body>
 </html>
+
