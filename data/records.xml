@@ -1,26 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Records version="1">
-  <Record id="rec_1757221455901_1">
-    <Category>Preparation</Category>
-    <Phase>PRE</Phase>
-    <Activity>[Pre visit] Kickoff call XX</Activity>
-    <Outcome>Align expectations, roles, and visit objectives across teams.</Outcome>
-    <PresentationOwner>Visit Host</PresentationOwner>
-    <ContentOwner>Visit Host</ContentOwner>
-    <Notes></Notes>
-    <Links>
-    </Links>
-    <Tiers>
-    <T name="tier_1">Applicable</T>
-    <T name="tier_1_1">Applicable</T>
-    <T name="tier_1_2">Applicable</T>
-    <T name="tier_2">Applicable</T>
-    <T name="tier_2_1">Applicable</T>
-    <T name="tier_3">Applicable</T>
-    <T name="tier_3_1">Applicable</T>
-    <T name="tier_3_2">Applicable</T>
-    </Tiers>
-  </Record>
   <Record id="rec_1757221455902_2">
     <Category>Preparation</Category>
     <Phase>PRE</Phase>
