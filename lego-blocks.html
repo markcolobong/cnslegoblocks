@@ -543,159 +543,161 @@
   })();
   </script>
 
-  <!-- ADD RECORD: stand-alone (open modal; on Save append to XML with unique id) -->
-  <script>
-  (function(){
-    const $ = (id) => document.getElementById(id);
+ <!-- ADD RECORD: stand-alone (open modal; Save appends to XML; auto-refresh; match Edit modal styling/scroll) -->
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
 
-    const addBtn   = $('openAddBtn');
-    const overlay  = $('modalOverlay');
-    const form     = $('recordForm');
-    const idInput  = $('recordId');
-    const closeBtn = $('closeModalBtn');
+  const addBtn   = $('openAddBtn');
+  const overlay  = $('modalOverlay');
+  const form     = $('recordForm');
+  const idInput  = $('recordId');
+  const closeBtn = $('closeModalBtn');
 
-    if (!addBtn || !overlay || !form) {
-      console.warn('[AddOnly] Required elements missing.', { addBtn: !!addBtn, overlay: !!overlay, form: !!form });
+  if (!addBtn || !overlay || !form) return;
+
+  // helpers
+  const val  = (id) => ($(id) ? $(id).value : '');
+  const text = (id) => ($(id) ? $(id).value.trim() : '');
+
+  function openAddModal(){
+    try { form.reset(); } catch {}
+    if (idInput) idInput.value = '';     // ensure CREATE mode
+    form.dataset.mode = 'create';
+    // Let existing CSS/theme handle centering/size/scroll (same as Edit)
+    overlay.setAttribute('aria-hidden','false');
+    const first = form.querySelector('input,select,textarea');
+    first && first.focus();
+  }
+
+  function closeModal(){
+    overlay.setAttribute('aria-hidden','true');
+    delete form.dataset.mode;
+  }
+
+  function nextUniqueId(all){
+    const ids = new Set(all.map(r => r.id || ''));
+    const lastId = all.length ? (all[all.length-1].id || '') : '';
+    let candidate;
+    const m = lastId.match(/^(.*?)(\d+)$/);
+    if (m) {
+      const prefix = m[1], digits = m[2];
+      candidate = prefix + String(parseInt(digits, 10) + 1).padStart(digits.length, '0');
     } else {
-      // helpers
-      const val  = (id) => ($(id) ? $(id).value : '');
-      const text = (id) => ($(id) ? $(id).value.trim() : '');
-
-      function openAddModal(){
-        form.reset();
-        if (idInput) idInput.value = '';        // ensure CREATE mode
-        form.dataset.mode = 'create';
-        overlay.style.display = '';
-        overlay.setAttribute('aria-hidden','false');
-        const first = form.querySelector('input,select,textarea');
-        first && first.focus();
-      }
-      function closeModal(){
-        overlay.style.display = 'none';
-        overlay.setAttribute('aria-hidden','true');
-        delete form.dataset.mode;
-      }
-
-      function nextUniqueId(all){
-        const ids = new Set(all.map(r => r.id || ''));
-        const lastId = all.length ? (all[all.length-1].id || '') : '';
-        let candidate;
-        const m = lastId.match(/^(.*?)(\d+)$/);
-        if (m) {
-          const prefix = m[1], digits = m[2];
-          candidate = prefix + String(parseInt(digits, 10) + 1).toString().padStart(digits.length, '0');
-        } else {
-          candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-        }
-        let guard = 0;
-        while (ids.has(candidate) && guard < 1000) {
-          const mm = candidate.match(/^(.*?)(\d+)$/);
-          if (mm) {
-            const p = mm[1], d = mm[2];
-            candidate = p + String(parseInt(d, 10) + 1).toString().padStart(d.length, '0');
-          } else {
-            candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-          }
-          guard++;
-        }
-        return candidate;
-      }
-
-      // Always open modal on Add (no validations, no writes)
-      addBtn.setAttribute('type','button');
-      addBtn.removeAttribute('disabled');
-      addBtn.addEventListener('click', function(e){
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        openAddModal();
-      }, true); // capture to override other handlers
-
-      // Close behavior
-      overlay.addEventListener('click', function(e){
-        if (!e.target.closest('.modal')) closeModal();
-      });
-      closeBtn && closeBtn.addEventListener('click', function(e){
-        e.preventDefault(); closeModal();
-      });
-      document.addEventListener('keydown', function(e){
-        if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
-      });
-
-      // ADD-ONLY Save handler (separate from Edit). If in Edit mode, we do nothing here.
-      if (!form.dataset.addOnlyBound){
-        form.dataset.addOnlyBound = 'true';
-
-        form.addEventListener('submit', async function onSubmitAdd(e){
-          const currentId = idInput ? idInput.value : '';
-          const isCreate = (form.dataset.mode === 'create' && !currentId);
-          if (!isCreate) return; // let your existing EDIT handler run untouched
-
-          e.preventDefault();
-          e.stopImmediatePropagation(); // ensure no other submit handlers fire for ADD
-
-          if (!window.XmlGitHubStorage?.load || !window.XmlGitHubStorage?.replaceAll){
-            alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-            return;
-          }
-          if (!XmlGitHubStorage.hasToken?.()){
-            alert('Write disabled: please login with a valid GitHub token first.');
-            return;
-          }
-
-          // Build record from user inputs (no defaults injected)
-          const record = {
-            id: '', // set after computing next id
-            category: val('category'),
-            phase: val('phase'),
-            activity: text('activity'),
-            outcome: text('outcome'),
-            presentationOwner: text('presentationOwner'),
-            contentOwner: text('contentOwner'),
-            notes: text('notes'),
-            links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
-              label: row.querySelector('.link-label')?.value || '',
-              url:   row.querySelector('.link-url')?.value   || ''
-            })),
-            tiers: {
-              tier_1:   val('tier_1'),
-              tier_1_1: val('tier_1_1'),
-              tier_1_2: val('tier_1_2'),
-              tier_2:   val('tier_2'),
-              tier_2_1: val('tier_2_1'),
-              tier_3:   val('tier_3'),
-              tier_3_1: val('tier_3_1'),
-              tier_3_2: val('tier_3_2')
-            }
-          };
-
-          // honor existing required fields
-          if (!record.category || !record.phase || !record.activity || !record.outcome){
-            alert('Please complete Category, Phase, Activity, and Outcome.');
-            return;
-          }
-
-          const submitBtn = document.getElementById('submitBtn');
-          const prevLabel = submitBtn ? submitBtn.textContent : '';
-          if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
-
-          try{
-            const all = await XmlGitHubStorage.load(); // may be empty
-            record.id = nextUniqueId(all);
-            all.push(record);                          // append to bottom
-            await XmlGitHubStorage.replaceAll(all);    // single write via PAT (with SHA retry in adapter)
-            try { await window.LegoSettings?.refresh?.(); } catch {}
-            closeModal();
-          }catch(err){
-            console.error(err);
-            alert('Save failed: ' + (err?.message || err));
-          }finally{
-            if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-          }
-        }, true); // capture so we fully own ADD path
-      }
+      candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     }
-  })();
-  </script>
+    let guard = 0;
+    while (ids.has(candidate) && guard < 1000) {
+      const mm = candidate.match(/^(.*?)(\d+)$/);
+      if (mm) {
+        const p = mm[1], d = mm[2];
+        candidate = p + String(parseInt(d, 10) + 1).padStart(d.length, '0');
+      } else {
+        candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      }
+      guard++;
+    }
+    return candidate;
+  }
+
+  // Always open modal on Add (no writes; no validations)
+  addBtn.setAttribute('type','button');
+  addBtn.removeAttribute('disabled');
+  addBtn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openAddModal();
+  }, true); // capture to beat any other listeners
+
+  // Close behavior (only when clicking the backdrop)
+  overlay.addEventListener('click', function(e){
+    if (!e.target.closest('.modal')) closeModal();
+  });
+  closeBtn && closeBtn.addEventListener('click', function(e){
+    e.preventDefault(); closeModal();
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
+  });
+
+  // ADD-ONLY Save (separate from Edit). If in Edit mode, do nothing here.
+  if (!form.dataset.addOnlyBound){
+    form.dataset.addOnlyBound = 'true';
+
+    form.addEventListener('submit', async function onSubmitAdd(e){
+      const currentId = idInput ? idInput.value : '';
+      const isCreate = (form.dataset.mode === 'create' && !currentId);
+      if (!isCreate) return; // let your existing EDIT handler run untouched
+
+      e.preventDefault();
+      e.stopImmediatePropagation(); // own the Add path completely
+
+      if (!window.XmlGitHubStorage?.load || !window.XmlGitHubStorage?.replaceAll){
+        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
+        return;
+      }
+      if (!XmlGitHubStorage.hasToken?.()){
+        alert('Write disabled: please login with a valid GitHub token first.');
+        return;
+      }
+
+      // Build record from user input (no defaults injected)
+      const record = {
+        id: '', // set after unique-id calc
+        category: val('category'),
+        phase: val('phase'),
+        activity: text('activity'),
+        outcome: text('outcome'),
+        presentationOwner: text('presentationOwner'),
+        contentOwner: text('contentOwner'),
+        notes: text('notes'),
+        links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
+          label: row.querySelector('.link-label')?.value || '',
+          url:   row.querySelector('.link-url')?.value   || ''
+        })),
+        tiers: {
+          tier_1:   val('tier_1'),
+          tier_1_1: val('tier_1_1'),
+          tier_1_2: val('tier_1_2'),
+          tier_2:   val('tier_2'),
+          tier_2_1: val('tier_2_1'),
+          tier_3:   val('tier_3'),
+          tier_3_1: val('tier_3_1'),
+          tier_3_2: val('tier_3_2')
+        }
+      };
+
+      // Respect required fields
+      if (!record.category || !record.phase || !record.activity || !record.outcome){
+        alert('Please complete Category, Phase, Activity, and Outcome.');
+        return;
+      }
+
+      const submitBtn = $('submitBtn');
+      const prevLabel = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+      try{
+        const all = await XmlGitHubStorage.load();   // may be empty
+        record.id = nextUniqueId(all);
+        all.push(record);                             // append at end
+        await XmlGitHubStorage.replaceAll(all);       // single write to XML via PAT
+
+        // 🔄 Auto-refresh the table/canvas like Import/Edit do
+        try { await window.LegoSettings?.refresh?.(); } catch {}
+
+        closeModal();
+      }catch(err){
+        console.error(err);
+        alert('Save failed: ' + (err?.message || err));
+      }finally{
+        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
+      }
+    }, true); // capture so we fully own the ADD path
+  }
+})();
+</script>
+
 
   <!-- CSS tip for visibility:
        .modal-overlay[aria-hidden="true"] { display:none; }
@@ -790,4 +792,5 @@
 
 </body>
 </html>
+
 
