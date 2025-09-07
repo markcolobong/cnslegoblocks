@@ -37,12 +37,15 @@ async function ghFetch(url, init={}){
 
 var XmlGitHubStorage = {
   setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
-  hasToken(){ return !!GITHUB_TOKEN; },
+ hasToken(){ 
+  const t = sanitizeToken(GITHUB_TOKEN || '');
+  return t.length > 0;
+},
 
   async load(){
     try{
       if (GITHUB_TOKEN) {
-        const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+        const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache: 'no-store' });
         if (res.status === 404) return [];
         if (!res.ok) return [];
         const json = await res.json();
@@ -79,7 +82,7 @@ var XmlGitHubStorage = {
 
 /* ===== Helpers ===== */
 async function getCurrentSha(){
-  const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+  const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache: 'no-store' });
   if (res.status === 200){
     const meta = await res.json();
     return meta.sha || null;
@@ -110,31 +113,28 @@ async function saveAllToGitHub(records, message){
     });
   }
 
-  // First attempt
-  let res = await put(sha);
+ // First attempt
+let res = await put(sha);
 
-  // Retry once on SHA mismatch / conflict
-  if (!res.ok) {
-    let errBody;
-    try { errBody = await res.json(); } catch { errBody = {}; }
-    const msg = (errBody && errBody.message) ? String(errBody.message) : '';
-    const isShaMismatch = res.status === 409 ||
-                          res.status === 422 ||
-                          /does not match/i.test(msg) ||
-                          /sha/i.test(msg);
-    if (isShaMismatch) {
-      sha = await getCurrentSha();      // refresh sha
-      res = await put(sha);             // retry
-    } else {
-      // not a sha error; throw original error
-      throw new Error(msg || ('GitHub save failed ('+res.status+')'));
+// Retry on SHA mismatch / conflict
+if (!res.ok) {
+  let errBody; try { errBody = await res.json(); } catch { errBody = {}; }
+  const msg = (errBody && errBody.message) ? String(errBody.message) : '';
+  const isShaMismatch = res.status === 409 || res.status === 422 || /does not match/i.test(msg) || /sha/i.test(msg);
+
+  if (isShaMismatch) {
+    // refresh sha and retry once
+    sha = await getCurrentSha();
+    res = await put(sha);
+
+    if (!res.ok) {
+      // tiny backoff + re-read once more (second & final retry)
+      await new Promise(r => setTimeout(r, 200));
+      sha = await getCurrentSha();
+      res = await put(sha);
     }
-  }
-
-  if (!res.ok) {
-    let err;
-    try { err = await res.json(); } catch { err = {}; }
-    throw new Error(err.message || ('GitHub save failed ('+res.status+')'));
+  } else {
+    throw new Error(msg || ('GitHub save failed ('+res.status+')'));
   }
 }
 
@@ -228,3 +228,4 @@ function decodeBase64Utf8(b64){
 }
 
 if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
+
