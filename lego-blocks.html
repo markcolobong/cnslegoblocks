@@ -642,7 +642,7 @@
   })();
   </script>
 
-<!-- Add Record glue (open modal only; write on Save; unique id; append to bottom; editing preserved) -->
+<!-- Add Record glue (open modal only; on Save: ADD => unique id + append; EDIT => let existing handler run) -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
@@ -658,7 +658,7 @@
   function openModalBlank(){
     if (!overlay || !form) return;
     form.reset();
-    if (idInput) idInput.value = '';      // ensure CREATE mode
+    if (idInput) idInput.value = '';        // ensure CREATE mode
     overlay.style.display = '';
     overlay.setAttribute('aria-hidden','false');
   }
@@ -668,27 +668,47 @@
     overlay.setAttribute('aria-hidden','true');
   }
 
-  // 1) Click "+ Add record" → open modal only (no validation / no write)
+  // 1) Click "+ Add record" → open modal only (no write)
   addBtn?.addEventListener('click', (e)=>{
     e.preventDefault();
     openModalBlank();
   });
 
+  // Only close when clicking true backdrop (never when clicking inside the modal)
+  overlay?.addEventListener('click', (e)=>{
+    if (!e.target.closest('.modal')) closeModal();
+  });
   closeBtn?.addEventListener('click', (e)=>{ e.preventDefault(); closeModal(); });
-  overlay?.addEventListener('click', (e)=>{ if (e.target === overlay) closeModal(); });
 
-  // 2) Save on submit
-  if (form && !form.dataset.boundSaveForAdd){
-    form.dataset.boundSaveForAdd = 'true';
+  // 2) On Save: handle ADD only; let existing EDIT handler continue untouched
+  if (form && !form.dataset.boundAddOnly){
+    form.dataset.boundAddOnly = 'true';
 
     const val  = (id) => ($(id) ? $(id).value : '');
     const text = (id) => ($(id) ? $(id).value.trim() : '');
 
     form.addEventListener('submit', async (e)=>{
-      // Build the record from user input first
-      const currentId = val('recordId'); // empty when adding
+      const currentId = val('recordId'); // empty when adding, set when editing
+
+      // If editing, do nothing—let your existing edit submit handler run.
+      if (currentId) return;
+
+      // ADD path: take over completely
+      e.preventDefault();
+      e.stopImmediatePropagation(); // prevent other submit handlers from firing and closing the modal
+
+      if (!window.XmlGitHubStorage?.load || !window.XmlGitHubStorage?.replaceAll){
+        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
+        return;
+      }
+      if (!XmlGitHubStorage.hasToken?.()){
+        alert('Write disabled: please login with a valid GitHub token first.');
+        return;
+      }
+
+      // Build record from user input (no defaults injected)
       const record = {
-        id: currentId,
+        id: '', // set after uniqueness check
         category: val('category'),
         phase: val('phase'),
         activity: text('activity'),
@@ -712,28 +732,9 @@
         }
       };
 
-      // Keep your existing requireds
+      // Honor your existing required fields
       if (!record.category || !record.phase || !record.activity || !record.outcome){
-        // Let the browser required attributes help; this is just a friendly message.
         alert('Please complete Category, Phase, Activity, and Outcome.');
-        e.preventDefault();
-        return;
-      }
-
-      // If this is an EDIT, do nothing here — let your existing edit handler run unchanged.
-      if (currentId){
-        return; // preserve existing editing functionality
-      }
-
-      // From here on, it's an ADD (no recordId yet): write to XML with a fresh unique id and append at bottom.
-      e.preventDefault();
-
-      if (!window.XmlGitHubStorage?.load || !window.XmlGitHubStorage?.replaceAll){
-        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-        return;
-      }
-      if (!XmlGitHubStorage.hasToken?.()){
-        alert('Write disabled: please login with a valid GitHub token first.');
         return;
       }
 
@@ -742,17 +743,17 @@
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
       try{
-        // Load existing to ensure uniqueness & append at the end
+        // Load existing, mint a unique id, append to bottom, save
         const all = await XmlGitHubStorage.load();
         const ids = new Set(all.map(r => r.id));
         let newId = genId();
-        while (ids.has(newId)) newId = genId(); // 4) ensure unique id
+        while (ids.has(newId)) newId = genId();   // guarantee uniqueness
         record.id = newId;
 
-        all.push(record);                        // 5) append to bottom
-        await XmlGitHubStorage.replaceAll(all);  // write once to XML via PAT
+        all.push(record);                          // append at the end
+        await XmlGitHubStorage.replaceAll(all);    // single write to XML via PAT
 
-        if (idInput) idInput.value = record.id;  // keep id in the form (in case modal stays open)
+        if (idInput) idInput.value = record.id;    // keep it in the form if needed
         try{ await window.LegoSettings?.refresh?.(); }catch{}
         closeModal();
       }catch(err){
@@ -761,10 +762,11 @@
       }finally{
         if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }
-    }, true); // capture so this runs before any other submit listeners
+    }, true); // capture: we handle ADD before any bubble-phase handlers
   }
 })();
 </script>
+
 
 
   <!-- Import handler (adds missing IDs, merges into XML, then refreshes UI) -->
@@ -891,5 +893,6 @@
   -->
 </body>
 </html>
+
 
 
