@@ -1,26 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Records version="1">
-  <Record id="rec_1757221455902_5">
-    <Category>Presentation</Category>
-    <Phase>PRE</Phase>
-    <Activity>GDS PH Overview - GDS</Activity>
-    <Outcome>Emphasize collaboration, capability alignment, and global impact from PH.</Outcome>
-    <PresentationOwner>PPED/ Host</PresentationOwner>
-    <ContentOwner></ContentOwner>
-    <Notes>for first timers/ refresher</Notes>
-    <Links>
-    </Links>
-    <Tiers>
-    <T name="tier_1">Not Applicable</T>
-    <T name="tier_1_1">Not Applicable</T>
-    <T name="tier_1_2">Not Applicable</T>
-    <T name="tier_2">Not Applicable</T>
-    <T name="tier_2_1">Not Applicable</T>
-    <T name="tier_3">Applicable</T>
-    <T name="tier_3_1">Applicable</T>
-    <T name="tier_3_2">Not Applicable</T>
-    </Tiers>
-  </Record>
   <Record id="rec_1757221455902_6">
     <Category>Presentation</Category>
     <Phase>PRE</Phase>
