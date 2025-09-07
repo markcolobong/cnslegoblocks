@@ -765,6 +765,124 @@
   })();
   </script>
 
+  <!-- Import handler (adds missing IDs, merges into XML, then refreshes UI) -->
+  <script>
+  (function(){
+    const $ = (id) => document.getElementById(id);
+    const importLink = $('importLink');
+    const csvInput   = $('csvFile');
+
+    function genId(){ return 'r_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+    // Tiny CSV cell parser with quotes support
+    function splitCSVLine(line){
+      const out=[], re=/("([^"]|"")*"|[^,]*)(,|$)/g; let m;
+      while((m=re.exec(line))!==null){
+        let cell=m[1] || '';
+        if (cell.startsWith('"') && cell.endsWith('"')){
+          cell = cell.slice(1,-1).replace(/""/g,'"');
+        }
+        out.push(cell.trim());
+        if (m.index === re.lastIndex) re.lastIndex++;
+      }
+      return out;
+    }
+
+    function normalizeHeader(h){
+      return String(h||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9_]/g,'');
+    }
+
+    function toRecord(row, idxByName){
+      const g = (name) => (row[idxByName[name]] ?? '').trim();
+
+      // Links: link1_label/link1_url ... link10_label/link10_url
+      const links = [];
+      for (let n=1;n<=10;n++){
+        const lbl = g(`link${n}label`) || g(`link${n}_label`);
+        const url = g(`link${n}url`)   || g(`link${n}_url`);
+        if (lbl || url) links.push({ label: lbl, url });
+      }
+
+      return {
+        id: g('id') || genId(),
+        category: g('category'),
+        phase: g('phase'),
+        activity: g('activity'),
+        outcome: g('outcome'),
+        presentationOwner: g('presentationowner'),
+        contentOwner: g('contentowner'),
+        notes: g('notes'),
+        links,
+        tiers: {
+          tier_1:   g('tier1')   || g('tier_1'),
+          tier_1_1: g('tier11')  || g('tier_1_1'),
+          tier_1_2: g('tier12')  || g('tier_1_2'),
+          tier_2:   g('tier2')   || g('tier_2'),
+          tier_2_1: g('tier21')  || g('tier_2_1'),
+          tier_3:   g('tier3')   || g('tier_3'),
+          tier_3_1: g('tier31')  || g('tier_3_1'),
+          tier_3_2: g('tier32')  || g('tier_3_2')
+        }
+      };
+    }
+
+    async function handleCSV(text){
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length>0);
+      if (lines.length === 0) { alert('CSV is empty.'); return; }
+
+      const headers = splitCSVLine(lines[0]).map(normalizeHeader);
+      const idxByName = {};
+      headers.forEach((h,i)=> idxByName[h]=i);
+
+      const imported = [];
+      for (let i=1;i<lines.length;i++){
+        const row = splitCSVLine(lines[i]);
+        if (row.every(c => String(c).trim()==='')) continue;
+        imported.push(toRecord(row, idxByName));
+      }
+      if (!imported.length){ alert('No data rows found in CSV.'); return; }
+
+      if (!window.XmlGitHubStorage?.hasToken?.()){
+        alert('Write disabled: please login with a valid GitHub token first.');
+        return;
+      }
+
+      const existing = await XmlGitHubStorage.load();
+      const byId = new Map(existing.map(r => [r.id, r]));
+      for (const rec of imported){
+        // optional: skip if required fields missing
+        if (!rec.category || !rec.phase || !rec.activity || !rec.outcome){
+          console.warn('[import] Skipping row missing required fields:', rec);
+          continue;
+        }
+        byId.set(rec.id, rec); // upsert by primary key
+      }
+
+      const merged = Array.from(byId.values());
+      await XmlGitHubStorage.replaceAll(merged);
+
+      try { await window.LegoSettings?.refresh?.(); } catch(e) { console.warn('refresh failed', e); }
+      alert(`Imported ${imported.length} row(s).`);
+    }
+
+    importLink?.addEventListener('click', (e)=>{
+      e.preventDefault();
+      csvInput?.click();
+    });
+    csvInput?.addEventListener('change', ()=>{
+      const f = csvInput.files && csvInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try{ await handleCSV(String(reader.result||'')); }
+        catch(err){ console.error(err); alert('Import failed: ' + (err?.message || err)); }
+        finally { csvInput.value = ''; }
+      };
+      reader.readAsText(f);
+    });
+  })();
+  </script>
+
   <!-- CSS note for modal visibility:
        .modal-overlay[aria-hidden="true"] { display:none; }
        .modal-overlay[aria-hidden="false"] { display:block; } /* or flex */
