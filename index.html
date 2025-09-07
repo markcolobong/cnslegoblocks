@@ -226,6 +226,108 @@
   <!-- Site JS -->
   <script src="assets/js/script.js"></script>
 
+  <!-- NEW: Public XML loader (no PAT; fetch from your public repo) -->
+  <script>
+  (function(){
+    const PUBLIC_XML = 'https://raw.githubusercontent.com/markcolobong/cnslegoblocks/main/data/records.xml';
+    const LIVE_KEY   = 'settings_records_live';     // end-user cache
+    const OLD_KEY    = 'settings_records_v10';      // legacy fallback
+    const ETAG_KEY   = 'settings_records_etag';     // for conditional GET
+    const TTL_MS     = 60 * 1000;                   // 60s freshness
+
+    let SETTINGS = null;
+    let lastFetchTs = 0;
+    let fetching = null;
+
+    function text(el, sel){ const n = sel ? el.querySelector(sel) : el; return (n && n.textContent || '').trim(); }
+
+    function parseXmlToRecords(xmlText){
+      const dom = new DOMParser().parseFromString(xmlText, 'application/xml');
+      if (dom.querySelector('parsererror')) throw new Error('Bad XML');
+      const out = [];
+      dom.querySelectorAll('record').forEach(rec=>{
+        const tiers = {};
+        ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'].forEach(k=>{
+          tiers[k] = text(rec, k);
+        });
+        const links = Array.from(rec.querySelectorAll('links > link')).map(l=>({
+          label: text(l, 'label'), url: text(l, 'url')
+        })).filter(l=>l.label || l.url);
+        const attachments = Array.from(rec.querySelectorAll('attachments > file')).map(f=>({
+          name: text(f, 'name'), url: text(f, 'url')
+        })).filter(a=>a.name || a.url);
+
+        out.push({
+          id: (rec.getAttribute('id') || text(rec,'id') || '').trim(),
+          category: text(rec,'category'),
+          phase: text(rec,'phase'),
+          activity: text(rec,'activity'),
+          outcome: text(rec,'outcome'),
+          presentationOwner: text(rec,'presentationOwner'),
+          contentOwner: text(rec,'contentOwner'),
+          notes: text(rec,'notes'),
+          links, attachments, tiers
+        });
+      });
+      return out;
+    }
+
+    async function fetchPublicRecords(force=false){
+      if (!force && SETTINGS && (Date.now() - lastFetchTs) < TTL_MS) return SETTINGS;
+      if (fetching) return fetching;
+
+      fetching = (async () => {
+        let headers = { 'cache-control': 'no-cache' };
+        const etag = localStorage.getItem(ETAG_KEY);
+        if (etag) headers['If-None-Match'] = etag;
+
+        const res = await fetch(PUBLIC_XML + '?_ts=' + Date.now(), { cache: 'no-store', headers });
+        if (res.status === 304 && SETTINGS) { lastFetchTs = Date.now(); return SETTINGS; }
+        if (!res.ok) throw new Error('Public fetch ' + res.status);
+
+        const xml = await res.text();
+        const arr = parseXmlToRecords(xml);
+
+        SETTINGS = arr;
+        lastFetchTs = Date.now();
+
+        try {
+          localStorage.setItem(LIVE_KEY, JSON.stringify(arr));
+          const et = res.headers.get('ETag'); if (et) localStorage.setItem(ETAG_KEY, et);
+        } catch {}
+        return arr;
+      })();
+
+      try { const r = await fetching; return r; }
+      finally { fetching = null; }
+    }
+
+    function loadFromCache(){
+      try {
+        const v = localStorage.getItem(LIVE_KEY);
+        if (v) { const arr = JSON.parse(v); if (Array.isArray(arr)) return arr; }
+      } catch {}
+      try {
+        const old = localStorage.getItem(OLD_KEY);
+        if (old) { const arr = JSON.parse(old); if (Array.isArray(arr)) return arr; }
+      } catch {}
+      return [];
+    }
+
+    window.ensureFreshRecords = async function ensureFreshRecords(){
+      try { return await fetchPublicRecords(false); }
+      catch { SETTINGS = loadFromCache(); return SETTINGS; }
+    };
+    window.loadSettings = function loadSettings(){
+      if (SETTINGS) return SETTINGS;
+      SETTINGS = loadFromCache();
+      return SETTINGS;
+    };
+
+    document.addEventListener('DOMContentLoaded', () => { ensureFreshRecords(); });
+  })();
+  </script>
+
   <!-- Resolver logic -->
   <script>
   (function(){
@@ -422,9 +524,11 @@
     });
 
     /* ---------- Settings + Results ---------- */
+    // REPLACED: use the global loader defined above
     function loadSettings(){
-      try{ return JSON.parse(localStorage.getItem(SETTINGS_LS_KEY)||'[]'); }catch{ return []; }
+      return (window.loadSettings && window.loadSettings()) || [];
     }
+
     function filterByResolvedTier(tierCode){
       if(!tierCode) return [];
       const field = {
@@ -541,7 +645,9 @@
     }
 
     /* ---------- Actions ---------- */
-    els.resolveBtn.addEventListener('click', ()=>{
+    els.resolveBtn.addEventListener('click', async ()=>{
+      // ensure we have the freshest public XML before computing
+      await (window.ensureFreshRecords ? window.ensureFreshRecords() : Promise.resolve());
       const tier = computeResolvedTier();
       renderResults(tier);
       window.scrollTo({ top: els.outCard.offsetTop - 80, behavior: 'smooth' });
