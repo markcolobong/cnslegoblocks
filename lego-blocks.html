@@ -550,172 +550,179 @@
   })();
   </script>
 
-  <!-- ADD RECORD: stand-alone (centered modal; Save appends + refresh; always returns to Add mode) -->
-  <script>
-  (function(){
-    const $ = (id) => document.getElementById(id);
+ <!-- ADD RECORD: stand-alone (centered modal; Save uses upsertOne + refresh; always returns to Add mode) -->
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
 
-    const addBtn      = $('openAddBtn');
-    const overlay     = $('modalOverlay');
-    const form        = $('recordForm');
-    const idInput     = $('recordId');
-    const closeBtn    = $('closeModalBtn');
-    const delBtn      = $('editDeleteBtn');
-    const submitBtn   = $('submitBtn');
-    const modalTitle  = $('modalTitle');
-    const countPill   = $('countPill');
-    const linksBox    = $('linksContainer');
+  const addBtn      = $('openAddBtn');
+  const overlay     = $('modalOverlay');
+  const form        = $('recordForm');
+  const idInput     = $('recordId');
+  const closeBtn    = $('closeModalBtn');
+  const delBtn      = $('editDeleteBtn');
+  const submitBtn   = $('submitBtn');
+  const modalTitle  = $('modalTitle');
+  const countPill   = $('countPill');
+  const linksBox    = $('linksContainer');
 
-    if (!addBtn || !overlay || !form) return;
+  if (!addBtn || !overlay || !form) return;
 
-    const val  = (id) => ($(id) ? $(id).value : '');
-    const text = (id) => ($(id) ? $(id).value.trim() : '');
+  const val  = (id) => ($(id) ? $(id).value : '');
+  const text = (id) => ($(id) ? $(id).value.trim() : '');
 
-    function openAddModal(){
-      try { form.reset(); } catch {}
-      if (linksBox) linksBox.innerHTML = '';
-      if (idInput) idInput.value = '';
-      form.dataset.mode = 'create';
-      if (modalTitle) modalTitle.textContent = 'Add Record';
-      if (delBtn) delBtn.style.display = 'none';
-      if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
-      overlay.setAttribute('aria-hidden','false'); // centered by CSS (same as Edit)
-      const first = form.querySelector('input,select,textarea');
-      first && first.focus();
+  function openAddModal(){
+    try { form.reset(); } catch {}
+    if (linksBox) linksBox.innerHTML = '';
+    if (idInput) idInput.value = '';
+    form.dataset.mode = 'create';
+    if (modalTitle) modalTitle.textContent = 'Add Record';
+    if (delBtn) delBtn.style.display = 'none';
+    if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
+    overlay.setAttribute('aria-hidden','false'); // centered by CSS
+    const first = form.querySelector('input,select,textarea');
+    first && first.focus();
+  }
+  function closeModal(){
+    overlay.setAttribute('aria-hidden','true');
+    delete form.dataset.mode;
+  }
+
+  function nextUniqueId(all){
+    const ids = new Set(all.map(r => r.id || ''));
+    const lastId = all.length ? (all[all.length-1].id || '') : '';
+    let candidate;
+    const m = lastId.match(/^(.*?)(\d+)$/);
+    if (m) {
+      const prefix = m[1], digits = m[2];
+      candidate = prefix + String(parseInt(digits, 10) + 1).padStart(digits.length, '0');
+    } else {
+      candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     }
-    function closeModal(){
-      overlay.setAttribute('aria-hidden','true');
-      delete form.dataset.mode;
-    }
-
-    function nextUniqueId(all){
-      const ids = new Set(all.map(r => r.id || ''));
-      const lastId = all.length ? (all[all.length-1].id || '') : '';
-      let candidate;
-      const m = lastId.match(/^(.*?)(\d+)$/);
-      if (m) {
-        const prefix = m[1], digits = m[2];
-        candidate = prefix + String(parseInt(digits, 10) + 1).padStart(digits.length, '0');
+    let guard = 0;
+    while (ids.has(candidate) && guard < 1000) {
+      const mm = candidate.match(/^(.*?)(\d+)$/);
+      if (mm) {
+        const p = mm[1], d = mm[2];
+        candidate = p + String(parseInt(d, 10) + 1).padStart(d.length, '0');
       } else {
         candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
       }
-      let guard = 0;
-      while (ids.has(candidate) && guard < 1000) {
-        const mm = candidate.match(/^(.*?)(\d+)$/);
-        if (mm) {
-          const p = mm[1], d = mm[2];
-          candidate = p + String(parseInt(d, 10) + 1).padStart(d.length, '0');
-        } else {
-          candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-        }
-        guard++;
-      }
-      return candidate;
+      guard++;
     }
+    return candidate;
+  }
 
-    // Open modal on Add (no writes)
-    addBtn.setAttribute('type','button');
-    addBtn.removeAttribute('disabled');
-    addBtn.addEventListener('click', function(e){
+  // Open modal on Add (no writes)
+  addBtn.setAttribute('type','button');
+  addBtn.removeAttribute('disabled');
+  addBtn.addEventListener('click', function(e){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openAddModal();
+  }, true); // capture wins over other listeners
+
+  // Close interactions
+  overlay.addEventListener('click', function(e){
+    if (!e.target.closest('.modal')) closeModal();
+  });
+  closeBtn && closeBtn.addEventListener('click', function(e){
+    e.preventDefault(); closeModal();
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
+  });
+
+  // ADD-ONLY Save: upsertOne + refresh; Edit handled elsewhere
+  if (!form.dataset.addOnlyBound){
+    form.dataset.addOnlyBound = 'true';
+
+    form.addEventListener('submit', async function onSubmitAdd(e){
+      const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
+      if (!isCreate) return; // let your EDIT handler own non-create paths
+
       e.preventDefault();
       e.stopImmediatePropagation();
-      openAddModal();
-    }, true); // capture so we beat other listeners if any
 
-    // Close interactions
-    overlay.addEventListener('click', function(e){
-      if (!e.target.closest('.modal')) closeModal();
-    });
-    closeBtn && closeBtn.addEventListener('click', function(e){
-      e.preventDefault(); closeModal();
-    });
-    document.addEventListener('keydown', function(e){
-      if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
-    });
+      if (!window.XmlGitHubStorage?.upsertOne || !window.XmlGitHubStorage?.load){
+        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
+        return;
+      }
+      if (!XmlGitHubStorage.hasToken?.()){
+        alert('Write disabled: please login with a valid GitHub token first.');
+        return;
+      }
 
-    // ADD-ONLY Save: append + refresh; Edit handled elsewhere
-    if (!form.dataset.addOnlyBound){
-      form.dataset.addOnlyBound = 'true';
-
-      form.addEventListener('submit', async function onSubmitAdd(e){
-        const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-        if (!isCreate) return; // let existing EDIT path handle edits
-
-        e.preventDefault();
-        e.stopImmediatePropagation();
-
-        if (!window.XmlGitHubStorage?.load || !window.XmlGitHubStorage?.replaceAll){
-          alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-          return;
+      // Gather user inputs (no defaults injected)
+      const record = {
+        id: '',
+        category: val('category'),
+        phase: val('phase'),
+        activity: text('activity'),
+        outcome: text('outcome'),
+        presentationOwner: text('presentationOwner'),
+        contentOwner: text('contentOwner'),
+        notes: text('notes'),
+        links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
+          label: row.querySelector('.link-label')?.value || '',
+          url:   row.querySelector('.link-url')?.value   || ''
+        })),
+        tiers: {
+          tier_1:   val('tier_1'),
+          tier_1_1: val('tier_1_1'),
+          tier_1_2: val('tier_1_2'),
+          tier_2:   val('tier_2'),
+          tier_2_1: val('tier_2_1'),
+          tier_3:   val('tier_3'),
+          tier_3_1: val('tier_3_1'),
+          tier_3_2: val('tier_3_2')
         }
-        if (!XmlGitHubStorage.hasToken?.()){
-          alert('Write disabled: please login with a valid GitHub token first.');
-          return;
-        }
+      };
 
-        // Gather user inputs
-        const record = {
-          id: '',
-          category: val('category'),
-          phase: val('phase'),
-          activity: text('activity'),
-          outcome: text('outcome'),
-          presentationOwner: text('presentationOwner'),
-          contentOwner: text('contentOwner'),
-          notes: text('notes'),
-          links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
-            label: row.querySelector('.link-label')?.value || '',
-            url:   row.querySelector('.link-url')?.value   || ''
-          })),
-          tiers: {
-            tier_1:   val('tier_1'),
-            tier_1_1: val('tier_1_1'),
-            tier_1_2: val('tier_1_2'),
-            tier_2:   val('tier_2'),
-            tier_2_1: val('tier_2_1'),
-            tier_3:   val('tier_3'),
-            tier_3_1: val('tier_3_1'),
-            tier_3_2: val('tier_3_2')
-          }
-        };
+      // Respect required fields
+      if (!record.category || !record.phase || !record.activity || !record.outcome){
+        alert('Please complete Category, Phase, Activity, and Outcome.');
+        return;
+      }
 
-        // Requireds
-        if (!record.category || !record.phase || !record.activity || !record.outcome){
-          alert('Please complete Category, Phase, Activity, and Outcome.');
-          return;
+      const prevLabel = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+      try{
+        // Generate id from the current tail, then UPSERT (appends if new)
+        const all = await XmlGitHubStorage.load();
+        record.id = nextUniqueId(all);
+        await XmlGitHubStorage.upsertOne(record);
+
+        // 🔄 Refresh UI immediately and again shortly after (API propagation)
+        try { await window.LegoSettings?.refresh?.(); } catch {}
+        setTimeout(()=>{ try { window.LegoSettings?.refresh?.(); } catch {} }, 250);
+
+        // Keep count pill in sync ASAP (optional)
+        if (Array.isArray(all)) {
+          const newCount = (all.length + 1); // upsert added one
+          const pill = countPill || document.getElementById('countPill');
+          if (pill) pill.textContent = `${newCount} records`;
         }
 
-        const prevLabel = submitBtn ? submitBtn.textContent : '';
-        if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+        // ✅ Close modal after successful save
+        closeModal();
 
-        try{
-          const all = await XmlGitHubStorage.load();
-          record.id = nextUniqueId(all);
-          all.push(record);
-          await XmlGitHubStorage.replaceAll(all);
+        // Ensure next click is Add mode (not Edit)
+        if (idInput) idInput.value = '';
+        if (delBtn)  delBtn.style.display = 'none';
+        if (modalTitle) modalTitle.textContent = 'Add Record';
+        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
+      }catch(err){
+        console.error(err);
+        alert('Save failed: ' + (err?.message || err));
+        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
+      }
+    }, true);
+  }
+})();
+</script>
 
-          // 🔄 Refresh UI immediately and again shortly after
-          try { await window.LegoSettings?.refresh?.(); } catch {}
-          setTimeout(()=>{ try { window.LegoSettings?.refresh?.(); } catch {} }, 250);
-          if (countPill) countPill.textContent = `${all.length} records`;
-
-          // ✅ Close modal after successful save
-          closeModal();
-
-          // Ensure next open is Add mode again
-          if (idInput) idInput.value = '';
-          if (delBtn)  delBtn.style.display = 'none';
-          if (modalTitle) modalTitle.textContent = 'Add Record';
-          if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-        }catch(err){
-          console.error(err);
-          alert('Save failed: ' + (err?.message || err));
-          if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-        }
-      }, true);
-    }
-  })();
-  </script>
 
   <!-- CSS tip (your theme likely already has this):
        .modal-overlay[aria-hidden="true"] { display:none; }
@@ -787,4 +794,5 @@
 
 </body>
 </html>
+
 
