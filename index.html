@@ -227,85 +227,88 @@
   <script src="assets/js/script.js"></script>
 
 <script>
-/* Minimal public XML loader — exact tag names, no normalization */
+/* Public XML loader: same schema, case-insensitive + namespace-safe */
 (function(){
-  // Use CDN (CORS-friendly) then raw GH as fallback
   const XML_SOURCES = [
     'https://cdn.jsdelivr.net/gh/markcolobong/cnslegoblocks@main/data/records.xml',
     'https://raw.githubusercontent.com/markcolobong/cnslegoblocks/main/data/records.xml'
   ];
-  const LIVE_KEY = 'settings_records_live';   // cache for end users
-  const OLD_KEY  = 'settings_records_v10';    // legacy local cache (your old data)
+  const LIVE_KEY = 'settings_records_live';
+  const OLD_KEY  = 'settings_records_v10';
 
   let SETTINGS = null;
 
-  function txt(parent, tag){
-    const el = parent.getElementsByTagName(tag)[0];
-    return el ? (el.textContent || '').trim() : '';
-  }
+  /* helpers: case-insensitive tag matching using localName */
+  const lc = s => String(s||'').toLowerCase();
+  const all = (root) => Array.from(root.getElementsByTagName('*'));
+  const byTag = (root, tag) => all(root).filter(el => lc(el.localName||el.tagName) === lc(tag));
+  const firstChildText = (el, tag) => {
+    const hit = Array.from(el.children||[]).find(c => lc(c.localName||c.tagName) === lc(tag));
+    return hit ? (hit.textContent||'').trim() : '';
+  };
 
   function parseRecords(xmlText){
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error('XML parse error');
 
-    const recs = Array.from(doc.getElementsByTagName('record')).map(rec => {
-      // exact field names your resolver/export use
+    const recNodes = byTag(doc, 'record');            // <record> (case-insensitive)
+    const out = recNodes.map(rec => {
+      // exact field names you already use (case-insensitive)
       const tiers = {
-        tier_1:   txt(rec,'tier_1'),
-        tier_1_1: txt(rec,'tier_1_1'),
-        tier_1_2: txt(rec,'tier_1_2'),
-        tier_2:   txt(rec,'tier_2'),
-        tier_2_1: txt(rec,'tier_2_1'),
-        tier_3:   txt(rec,'tier_3'),
-        tier_3_1: txt(rec,'tier_3_1'),
-        tier_3_2: txt(rec,'tier_3_2')
+        tier_1:   firstChildText(rec,'tier_1'),
+        tier_1_1: firstChildText(rec,'tier_1_1'),
+        tier_1_2: firstChildText(rec,'tier_1_2'),
+        tier_2:   firstChildText(rec,'tier_2'),
+        tier_2_1: firstChildText(rec,'tier_2_1'),
+        tier_3:   firstChildText(rec,'tier_3'),
+        tier_3_1: firstChildText(rec,'tier_3_1'),
+        tier_3_2: firstChildText(rec,'tier_3_2')
       };
 
-      // optional links/attachments (kept as before; harmless if not present)
-      const linksNode = rec.getElementsByTagName('links')[0];
+      // optional nested collections
+      const linksNode = byTag(rec,'links')[0];
       const links = linksNode
-        ? Array.from(linksNode.getElementsByTagName('link')).map(l => ({
-            label: txt(l,'label'), url: txt(l,'url')
-          })).filter(x => x.label || x.url)
+        ? Array.from(linksNode.children||[])
+            .filter(c => lc(c.localName||c.tagName)==='link')
+            .map(l => ({ label: firstChildText(l,'label'), url: firstChildText(l,'url') }))
+            .filter(x => x.label || x.url)
         : [];
 
-      const attsNode = rec.getElementsByTagName('attachments')[0];
+      const attsNode = byTag(rec,'attachments')[0];
       const attachments = attsNode
-        ? Array.from(attsNode.getElementsByTagName('file')).map(f => ({
-            name: txt(f,'name'), url: txt(f,'url')
-          })).filter(x => x.name || x.url)
+        ? Array.from(attsNode.children||[])
+            .filter(c => lc(c.localName||c.tagName)==='file')
+            .map(f => ({ name: firstChildText(f,'name'), url: firstChildText(f,'url') }))
+            .filter(x => x.name || x.url)
         : [];
 
       return {
-        id: (rec.getAttribute('id') || txt(rec,'id') || '').trim(),
-        category: txt(rec,'category'),
-        phase: txt(rec,'phase'),
-        activity: txt(rec,'activity'),
-        outcome: txt(rec,'outcome'),
-        presentationOwner: txt(rec,'presentationOwner'),
-        contentOwner: txt(rec,'contentOwner'),
-        notes: txt(rec,'notes'),
+        id: (rec.getAttribute('id') || firstChildText(rec,'id') || '').trim(),
+        category: firstChildText(rec,'category'),
+        phase: firstChildText(rec,'phase'),
+        activity: firstChildText(rec,'activity'),
+        outcome: firstChildText(rec,'outcome'),
+        presentationOwner: firstChildText(rec,'presentationOwner'),
+        contentOwner: firstChildText(rec,'contentOwner'),
+        notes: firstChildText(rec,'notes'),
         links, attachments, tiers
       };
     });
 
-    return recs;
+    return out;
   }
 
   async function fetchXML(){
     let lastErr;
     for (const url of XML_SOURCES){
       try{
-        // simple GET, no custom headers → no preflight
-        const res = await fetch(url + '?_=' + Date.now(), { cache: 'no-store' });
+        const res = await fetch(url + '?_=' + Date.now(), { cache: 'no-store' }); // simple GET (no preflight)
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const xml = await res.text();
         const arr = parseRecords(xml);
-        if (Array.isArray(arr)) {
-          SETTINGS = arr;
-          try { localStorage.setItem(LIVE_KEY, JSON.stringify(arr)); } catch {}
-          return arr;
-        }
+        SETTINGS = Array.isArray(arr) ? arr : [];
+        try { localStorage.setItem(LIVE_KEY, JSON.stringify(SETTINGS)); } catch {}
+        return SETTINGS;
       }catch(e){ lastErr = e; }
     }
     // fallback to cache
@@ -316,12 +319,13 @@
     return SETTINGS;
   }
 
-  // Public hooks used by your resolver
+  // public hooks (used by your resolver)
   window.ensureFreshRecords = () => fetchXML();
-  window.loadSettings = () => SETTINGS
+  window.loadSettings = () =>
+    SETTINGS
     || (function(){ try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{} try{ const v = localStorage.getItem(OLD_KEY); if (v) return JSON.parse(v); }catch{} return []; })();
 
-  // Prefetch on page load
+  // prefetch on load
   document.addEventListener('DOMContentLoaded', () => { fetchXML(); });
 })();
 </script>
@@ -669,6 +673,7 @@
   </script>
 </body>
 </html>
+
 
 
 
