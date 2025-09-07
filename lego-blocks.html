@@ -286,7 +286,140 @@
     })();
   </script>
 
-  <!-- Login + PAT (STRICT: verify token with GitHub before unlock) -->
+  <!-- Commit-aware hard repaint + builder (exposes window.forceFreshLegoRender) -->
+  <script>
+  (function(){
+    const SS_LAST_SHA = 'lego_last_commit_sha';
+
+    const $  = (id)=>document.getElementById(id);
+    const q  = (sel, el=document)=>el.querySelector(sel);
+    const S  = (v)=>String(v ?? '');
+
+    function buildRow(rec, templateRow){
+      let tr;
+      if (templateRow){
+        tr = templateRow.cloneNode(true);
+        tr.dataset.id = rec.id;
+        const cells = tr.querySelectorAll('td');
+
+        const setText = (i,val)=>{ if(!cells[i])return; cells[i].innerHTML=''; cells[i].textContent=S(val); };
+        const setTier = (i,val)=>{
+          if(!cells[i])return;
+          const cell=cells[i];
+          cell.innerHTML='';
+          const pill=document.createElement('span');
+          pill.className='pill';
+          pill.setAttribute('data-value',S(val));
+          pill.textContent=S(val);
+          cell.appendChild(pill);
+        };
+
+        setText(0,rec.category);
+        setText(1,rec.phase);
+        setText(2,rec.activity);
+        setText(3,rec.outcome);
+        setTier(4,rec.tiers?.tier_1);
+        setTier(5,rec.tiers?.tier_1_1);
+        setTier(6,rec.tiers?.tier_1_2);
+        setTier(7,rec.tiers?.tier_2);
+        setTier(8,rec.tiers?.tier_2_1);
+        setTier(9,rec.tiers?.tier_3);
+        setTier(10,rec.tiers?.tier_3_1);
+        setTier(11,rec.tiers?.tier_3_2);
+
+        const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
+        if (actionsCell){
+          actionsCell.querySelectorAll('a,button').forEach(el=>{
+            el.setAttribute('data-id', rec.id);
+            const txt=(el.textContent||'').toLowerCase();
+            if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
+              el.classList.add('view-link'); el.setAttribute('data-action','view');
+            }
+            if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
+              el.classList.add('delete-link'); el.setAttribute('data-action','delete');
+            }
+          });
+        }
+      } else {
+        tr = document.createElement('tr');
+        tr.dataset.id = rec.id;
+        const td=(t,cls)=>{ const el=document.createElement('td'); if(cls) el.className=cls; el.textContent=S(t); return el; };
+        const mk=(v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
+        tr.appendChild(td(rec.category,'cat'));
+        tr.appendChild(td(rec.phase,'phase'));
+        tr.appendChild(td(rec.activity,'activity'));
+        tr.appendChild(td(rec.outcome,'outcome'));
+        ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'].forEach(k=>{
+          const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); tr.appendChild(cell);
+        });
+        const actions=document.createElement('td');
+        actions.className='actions';
+        actions.innerHTML = `
+          <a href="#" class="tiny view-link" data-id="${rec.id}">View</a>
+          <span class="sep">•</span>
+          <a href="#" class="tiny danger delete-link" data-id="${rec.id}">Delete</a>
+        `;
+        tr.appendChild(actions);
+      }
+      return tr;
+    }
+
+    function setCount(n){ const pill=$('countPill'); if(pill) pill.textContent=`${n} records`; }
+
+    async function loadFreshRecords(){
+      const stickySha=(sessionStorage.getItem(SS_LAST_SHA)||'').trim();
+      try{
+        if (stickySha && window.XmlGitHubStorage?.loadAtRef){
+          const recs = await XmlGitHubStorage.loadAtRef(stickySha);
+          if (Array.isArray(recs) && recs.length) return recs;
+        }
+      }catch{}
+      try { return await XmlGitHubStorage.load(); } catch { return []; }
+    }
+
+    async function hardRepaint(reason){
+      const tb = q('#dataTable tbody');
+      if (!tb) return;
+
+      // Clear any active search filter (mirrors your manual workaround)
+      const search = $('search');
+      if (search){
+        if (search.value !== '') search.value = '';
+        search.dispatchEvent(new Event('input', { bubbles:true }));
+      }
+
+      const records = await loadFreshRecords();
+      const templateRow = tb.querySelector('tr');
+      const frag = document.createDocumentFragment();
+      (records||[]).forEach(r=> frag.appendChild(buildRow(r, templateRow)));
+      tb.innerHTML = '';
+      tb.appendChild(frag);
+      setCount(records.length);
+
+      try { window.dispatchEvent(new CustomEvent('lego:tableRepainted', { detail:{ reason, count: records.length } })); } catch {}
+    }
+
+    // Expose for other blocks
+    window.forceFreshLegoRender = () => hardRepaint('manual');
+
+    // Repaint on the right lifecycle moments
+    window.addEventListener('lego:recordsSaved', ()=> hardRepaint('saved'));
+    (function hookUnlock(){
+      if (!window.__authGuard || typeof __authGuard.unlock !== 'function') return;
+      const orig = __authGuard.unlock.bind(__authGuard);
+      __authGuard.unlock = function(){
+        const r = orig();
+        hardRepaint('unlock');
+        return r;
+      };
+    })();
+    document.addEventListener('DOMContentLoaded', ()=> hardRepaint('domready'));
+    window.addEventListener('pageshow', ()=> hardRepaint('pageshow'));
+    window.addEventListener('focus', ()=> hardRepaint('focus'));
+  })();
+  </script>
+
+  <!-- Login + PAT (STRICT: verify token before unlock; calls forceFreshLegoRender on success) -->
   <script>
   (function(){
     const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
@@ -325,25 +458,6 @@
       }
     }
 
-    function clearSearch(){
-      const s=document.getElementById('search');
-      if (s){ s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); }
-    }
-
-    function refreshCascade(tag){
-      // Always use your app’s renderer; double-run to beat remote caching
-      clearSearch();
-      if (window.LegoSettings?.refresh){
-        try{ LegoSettings.refresh(); }catch{}
-        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 300);
-        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 900);
-      }
-    }
-
-    async function forceFreshRender(){
-      refreshCascade('force');
-    }
-
     function unlockUI(pat){
       sessionStorage.setItem(TOKEN_KEY, pat);
       sessionStorage.setItem(SESSION_KEY, 'true');
@@ -355,7 +469,8 @@
         if (app) app.style.display=''; if (gate) gate.style.display='none';
       }
       if (logout) logout.style.display='';
-      refreshCascade('unlock');
+      // paint latest after login
+      if (window.forceFreshLegoRender) try{ window.forceFreshLegoRender(); }catch{}
     }
 
     function lockUI(){
@@ -431,13 +546,10 @@
       enterBtn.textContent='Enter';
       uEl.value=''; pEl.value=''; patEl.value='';
     });
-
-    // Make available to Add module
-    window.refreshCascade = refreshCascade;
   })();
   </script>
 
-  <!-- ADD: append row AFTER modal closes (post-save) + trigger refresh cascade -->
+  <!-- ADD RECORD: append after modal closes (post-save), instant row + commit-aware refresh -->
   <script>
   (function(){
     const $  = (id)=>document.getElementById(id);
@@ -458,7 +570,7 @@
     function setCount(n){ if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`; }
 
     function appendRowImmediate(rec){
-      const tb = q('#dataTable tbody');
+      const tb  = q('#dataTable tbody');
       if (!tb) return;
 
       const tpl = tb.querySelector('tr');
@@ -469,19 +581,12 @@
         tr.dataset.id = rec.id;
         const cells = tr.querySelectorAll('td');
 
-        const setText = (idx, val) => {
-          if (!cells[idx]) return;
-          cells[idx].innerHTML = '';
-          cells[idx].textContent = S(val);
-        };
-        const setTier = (idx, val) => {
-          if (!cells[idx]) return;
-          const cell = cells[idx];
-          cell.innerHTML = '';
-          const pill = document.createElement('span');
-          pill.className = 'pill';
-          pill.setAttribute('data-value', S(val));
-          pill.textContent = S(val);
+        const setText = (i,v)=>{ if(!cells[i])return; cells[i].innerHTML=''; cells[i].textContent=S(v); };
+        const setTier = (i,v)=>{
+          if(!cells[i])return;
+          const cell=cells[i]; cell.innerHTML='';
+          const pill=document.createElement('span');
+          pill.className='pill'; pill.setAttribute('data-value',S(v)); pill.textContent=S(v);
           cell.appendChild(pill);
         };
 
@@ -498,12 +603,11 @@
         setTier(10, rec.tiers?.tier_3_1);
         setTier(11, rec.tiers?.tier_3_2);
 
-        // normalize actions so View/Delete target new id
         const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
         if (actionsCell){
           actionsCell.querySelectorAll('a,button').forEach(el=>{
             el.setAttribute('data-id', rec.id);
-            const txt = (el.textContent || '').toLowerCase();
+            const txt=(el.textContent||'').toLowerCase();
             if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
               el.classList.add('view-link'); el.setAttribute('data-action','view');
             }
@@ -513,12 +617,10 @@
           });
         }
       } else {
-        // Empty table fallback
         tr = document.createElement('tr');
         tr.dataset.id = rec.id;
-        const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
-        const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
-
+        const td=(t,cls)=>{ const el=document.createElement('td'); if(cls) el.className=cls; el.textContent=S(t); return el; };
+        const mk=(v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
         tr.appendChild(td(rec.category,'cat'));
         tr.appendChild(td(rec.phase,'phase'));
         tr.appendChild(td(rec.activity,'activity'));
@@ -536,7 +638,7 @@
         tr.appendChild(actions);
       }
 
-      tb.appendChild(tr);
+      (q('#dataTable tbody')||tb).appendChild(tr);
     }
 
     // Always open in Add mode
@@ -546,12 +648,11 @@
       const del = document.getElementById('editDeleteBtn');
       if (del && del.style) del.style.display = 'none';
       form.dataset.mode = 'create';
-      document.getElementById('modalOverlay')?.setAttribute('aria-hidden','false');
+      document.getElementById('modalOverlay')?.setAttribute('aria-hidden','false'); // let CSS center it
     });
 
+    // Capture Add submit: snapshot data + set our chosen ID (DOM-based or fallback)
     let pendingAdd = null;
-
-    // Capture Add submit to snapshot values (ID will be generated now)
     form.addEventListener('submit', (e)=>{
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
       if (!isCreate) return;
@@ -560,8 +661,8 @@
       const last = rows.length ? rows[rows.length-1].dataset.id || '' : '';
       let nextId;
       const m = last.match(/^(.*?)(\d+)$/);
-      if (m){ const p=m[1], d=m[2]; nextId = p + String(parseInt(d,10)+1).padStart(d.length,'0'); }
-      else nextId = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      nextId = m ? (m[1] + String(parseInt(m[2],10)+1).padStart(m[2].length,'0'))
+                 : ('r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7));
 
       const rec = {
         id: nextId,
@@ -588,11 +689,12 @@
         }
       };
 
-      if (idInput) idInput.value = rec.id; // make sure the saver uses this exact id
-      pendingAdd = rec;                     // we append after modal closes (i.e., save is done)
+      if (idInput) idInput.value = rec.id; // ensure storage uses this ID
+      pendingAdd = rec;
+      // don't preventDefault — your existing handler saves & closes modal
     }, true);
 
-    // When the modal actually closes after save → append instantly and refresh cascade
+    // After modal actually closes, append the row instantly, bump count, then repaint from XML
     const mo = new MutationObserver(async (mlist)=>{
       for (const m of mlist){
         if (m.type==='attributes' && m.attributeName==='aria-hidden'){
@@ -603,8 +705,7 @@
             appendRowImmediate(rec);
             const c=parseCount(); if (!isNaN(c)) setCount(c+1);
 
-            // ask the app to repaint from XML a few times (handles GitHub replication lag)
-            if (window.refreshCascade) window.refreshCascade('after-add');
+            if (window.forceFreshLegoRender) { try{ await window.forceFreshLegoRender(); }catch{} }
           }
         }
       }
@@ -613,42 +714,14 @@
   })();
   </script>
 
-  <!-- Global repaint hooks (page load, focus, and after a successful save from storage-xml-github.js) -->
-  <script>
-  (function(){
-    function clearSearch(){
-      const s=document.getElementById('search');
-      if (s){ s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); }
-    }
-    function refreshCascade(tag){
-      clearSearch();
-      if (window.LegoSettings?.refresh){
-        try{ LegoSettings.refresh(); }catch{}
-        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 300);
-        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 900);
-      }
-    }
-
-    // When the XML write finishes, storage-xml-github.js emits this
-    window.addEventListener('lego:recordsSaved', ()=> refreshCascade('saved'));
-
-    // On page (re)appear and initial load
-    document.addEventListener('DOMContentLoaded', ()=> refreshCascade('domready'));
-    window.addEventListener('pageshow', ()=> refreshCascade('pageshow'));
-    window.addEventListener('focus', ()=> refreshCascade('focus'));
-
-    // Make available if something else wants it
-    window.refreshCascade = window.refreshCascade || refreshCascade;
-  })();
-  </script>
-
-  <!-- Delegate "View" so freshly added rows work immediately -->
+  <!-- View Details delegate (works for freshly appended rows) -->
   <script>
   (function(){
     document.addEventListener('click', function(e){
       const el = e.target.closest('[data-action="view"], .view-link, .view-details, .btn-view');
       if (!el) return;
       e.preventDefault();
+
       const id = el.getAttribute('data-id') || el.closest('tr')?.dataset.id;
       if (!id) return;
 
@@ -659,5 +732,9 @@
     }, true);
   })();
   </script>
+
+  <!-- CSS tip:
+       .modal-overlay[aria-hidden="true"]  { display:none; }
+       .modal-overlay[aria-hidden="false"] { display:block; }  -->
 </body>
 </html>
