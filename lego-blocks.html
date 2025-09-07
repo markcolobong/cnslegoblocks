@@ -543,36 +543,54 @@
   })();
   </script>
 
- <!-- ADD RECORD: stand-alone (open modal; Save appends to XML; auto-refresh; match Edit modal styling/scroll) -->
+<!-- ADD RECORD: stand-alone (centered modal; Save appends + refresh; always returns to Add mode) -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
 
-  const addBtn   = $('openAddBtn');
-  const overlay  = $('modalOverlay');
-  const form     = $('recordForm');
-  const idInput  = $('recordId');
-  const closeBtn = $('closeModalBtn');
+  const addBtn      = $('openAddBtn');
+  const overlay     = $('modalOverlay');
+  const form        = $('recordForm');
+  const idInput     = $('recordId');
+  const closeBtn    = $('closeModalBtn');
+  const delBtn      = $('editDeleteBtn');
+  const submitBtn   = $('submitBtn');
+  const modalTitle  = $('modalTitle');
+  const countPill   = $('countPill');
+  const linksBox    = $('linksContainer');
 
   if (!addBtn || !overlay || !form) return;
 
-  // helpers
+  // ---------- helpers ----------
   const val  = (id) => ($(id) ? $(id).value : '');
   const text = (id) => ($(id) ? $(id).value.trim() : '');
 
-  function openAddModal(){
-    try { form.reset(); } catch {}
-    if (idInput) idInput.value = '';     // ensure CREATE mode
-    form.dataset.mode = 'create';
-    // Let existing CSS/theme handle centering/size/scroll (same as Edit)
-    overlay.setAttribute('aria-hidden','false');
-    const first = form.querySelector('input,select,textarea');
-    first && first.focus();
+  function ensureCenteredModalOpen(){
+    // Remove any stray inline styles/classes that could break centering
+    overlay.removeAttribute('style');       // don't force display/block; let CSS handle
+    overlay.setAttribute('aria-hidden','false'); // your CSS uses this to show & center
   }
-
   function closeModal(){
     overlay.setAttribute('aria-hidden','true');
     delete form.dataset.mode;
+  }
+
+  // Cleanly reset to **Add** view every time
+  function openAddModal(){
+    try { form.reset(); } catch {}
+    if (linksBox) linksBox.innerHTML = '';  // clear any old dynamic link rows
+    if (idInput) idInput.value = '';        // ensure CREATE mode
+    form.dataset.mode = 'create';
+
+    if (modalTitle) modalTitle.textContent = 'Add Record';
+    if (delBtn)     delBtn.style.display = 'none';  // hide Delete in Add mode
+    if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
+
+    ensureCenteredModalOpen();
+
+    // focus first useful control
+    const first = form.querySelector('input,select,textarea');
+    first && first.focus();
   }
 
   function nextUniqueId(all){
@@ -600,16 +618,15 @@
     return candidate;
   }
 
-  // Always open modal on Add (no writes; no validations)
+  // ---------- open/close wiring ----------
   addBtn.setAttribute('type','button');
   addBtn.removeAttribute('disabled');
   addBtn.addEventListener('click', function(e){
     e.preventDefault();
     e.stopImmediatePropagation();
     openAddModal();
-  }, true); // capture to beat any other listeners
+  }, true);
 
-  // Close behavior (only when clicking the backdrop)
   overlay.addEventListener('click', function(e){
     if (!e.target.closest('.modal')) closeModal();
   });
@@ -620,14 +637,14 @@
     if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
   });
 
-  // ADD-ONLY Save (separate from Edit). If in Edit mode, do nothing here.
+  // ---------- Save (ADD ONLY). Edit path is untouched and handled by your existing code ----------
   if (!form.dataset.addOnlyBound){
     form.dataset.addOnlyBound = 'true';
 
     form.addEventListener('submit', async function onSubmitAdd(e){
-      const currentId = idInput ? idInput.value : '';
-      const isCreate = (form.dataset.mode === 'create' && !currentId);
-      if (!isCreate) return; // let your existing EDIT handler run untouched
+      // If 'recordId' present, it's Edit — let your existing edit handler run
+      const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
+      if (!isCreate) return;
 
       e.preventDefault();
       e.stopImmediatePropagation(); // own the Add path completely
@@ -641,9 +658,9 @@
         return;
       }
 
-      // Build record from user input (no defaults injected)
+      // Build from user inputs (no defaults injected)
       const record = {
-        id: '', // set after unique-id calc
+        id: '', // set after id generation
         category: val('category'),
         phase: val('phase'),
         activity: text('activity'),
@@ -667,36 +684,47 @@
         }
       };
 
-      // Respect required fields
+      // Respect your required fields
       if (!record.category || !record.phase || !record.activity || !record.outcome){
         alert('Please complete Category, Phase, Activity, and Outcome.');
         return;
       }
 
-      const submitBtn = $('submitBtn');
       const prevLabel = submitBtn ? submitBtn.textContent : '';
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
       try{
-        const all = await XmlGitHubStorage.load();   // may be empty
+        // Append to end and save
+        const all = await XmlGitHubStorage.load();
         record.id = nextUniqueId(all);
-        all.push(record);                             // append at end
-        await XmlGitHubStorage.replaceAll(all);       // single write to XML via PAT
+        all.push(record);
+        await XmlGitHubStorage.replaceAll(all);
 
-        // 🔄 Auto-refresh the table/canvas like Import/Edit do
+        // ✅ Auto-refresh the canvas/table immediately (and once more shortly after)
         try { await window.LegoSettings?.refresh?.(); } catch {}
+        setTimeout(()=> { try { window.LegoSettings?.refresh?.(); } catch {} }, 250);
 
+        // Also keep the pill in sync immediately
+        if (countPill) countPill.textContent = `${all.length} records`;
+
+        // Close modal
         closeModal();
+
+        // Make sure the next time you click “+ Add record” it opens in Add mode again
+        if (idInput) idInput.value = '';
+        if (delBtn)  delBtn.style.display = 'none';
+        if (modalTitle) modalTitle.textContent = 'Add Record';
+        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }catch(err){
         console.error(err);
         alert('Save failed: ' + (err?.message || err));
-      }finally{
         if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }
-    }, true); // capture so we fully own the ADD path
+    }, true);
   }
 })();
 </script>
+
 
 
   <!-- CSS tip for visibility:
@@ -792,5 +820,6 @@
 
 </body>
 </html>
+
 
 
