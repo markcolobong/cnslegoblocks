@@ -201,5 +201,10 @@ td.tier{width:3.25%; text-align:center; white-space:normal; overflow:visible; te
 .submenu a.active{ background:rgba(37,99,235,.08); color:var(--brand); border-radius:8px; }
 
 .modal-overlay[aria-hidden="true"] { display: none; }
+.modal-overlay.open { display: block; } /* or display:flex if you center with flex */
+
+
+.modal-overlay[aria-hidden="true"] { display: none; }
 .modal-overlay.open { display: block; } /* or flex, depending on your layout */
+
 
