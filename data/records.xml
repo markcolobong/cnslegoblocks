@@ -1,26 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Records version="1">
-  <Record id="rec_1757221455902_4">
-    <Category>Presentation</Category>
-    <Phase>PRE</Phase>
-    <Activity>GDS PH Overview - Account / MF</Activity>
-    <Outcome>Demonstrate value delivery, talent quality, and operational maturity supporting account/MF needs.</Outcome>
-    <PresentationOwner>PPED/ Host</PresentationOwner>
-    <ContentOwner></ContentOwner>
-    <Notes>for first timers;</Notes>
-    <Links>
-    </Links>
-    <Tiers>
-    <T name="tier_1">Not Applicable</T>
-    <T name="tier_1_1">Not Applicable</T>
-    <T name="tier_1_2">Not Applicable</T>
-    <T name="tier_2">Applicable</T>
-    <T name="tier_2_1">Applicable</T>
-    <T name="tier_3">Not Applicable</T>
-    <T name="tier_3_1">Not Applicable</T>
-    <T name="tier_3_2">Not Applicable</T>
-    </Tiers>
-  </Record>
   <Record id="rec_1757221455902_5">
     <Category>Presentation</Category>
     <Phase>PRE</Phase>
