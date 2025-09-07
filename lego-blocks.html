@@ -550,7 +550,7 @@
   })();
   </script>
 
- <!-- ADD RECORD: stand-alone (centered modal; Save uses upsertOne + refresh; always returns to Add mode) -->
+ <!-- ADD RECORD: stand-alone (Save -> upsertOne -> robust refresh; always 'Add' mode next time) -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
@@ -570,6 +570,24 @@
 
   const val  = (id) => ($(id) ? $(id).value : '');
   const text = (id) => ($(id) ? $(id).value.trim() : '');
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function parseCountPill(){
+    const m = (countPill?.textContent || '').match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : NaN;
+  }
+
+  async function robustRefresh(expectedCount){
+    // Try a few times to beat GitHub content propagation/caching
+    const attempts = [0, 150, 400, 800, 1400]; // ms
+    for (let i=0; i<attempts.length; i++){
+      try { await window.LegoSettings?.refresh?.(); } catch {}
+      await sleep(i === 0 ? 50 : attempts[i]); // tiny wait after refresh
+      const current = parseCountPill();
+      if (!isNaN(current) && current === expectedCount) return true;
+    }
+    return false;
+  }
 
   function openAddModal(){
     try { form.reset(); } catch {}
@@ -620,7 +638,7 @@
     e.preventDefault();
     e.stopImmediatePropagation();
     openAddModal();
-  }, true); // capture wins over other listeners
+  }, true); // capture beats other listeners
 
   // Close interactions
   overlay.addEventListener('click', function(e){
@@ -633,13 +651,13 @@
     if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
   });
 
-  // ADD-ONLY Save: upsertOne + refresh; Edit handled elsewhere
+  // ADD-ONLY Save: upsertOne + robust UI refresh; Edit is handled elsewhere
   if (!form.dataset.addOnlyBound){
     form.dataset.addOnlyBound = 'true';
 
     form.addEventListener('submit', async function onSubmitAdd(e){
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-      if (!isCreate) return; // let your EDIT handler own non-create paths
+      if (!isCreate) return; // let your EDIT path handle edits
 
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -652,6 +670,8 @@
         alert('Write disabled: please login with a valid GitHub token first.');
         return;
       }
+
+      const beforeCount = parseCountPill();
 
       // Gather user inputs (no defaults injected)
       const record = {
@@ -679,7 +699,7 @@
         }
       };
 
-      // Respect required fields
+      // Requireds
       if (!record.category || !record.phase || !record.activity || !record.outcome){
         alert('Please complete Category, Phase, Activity, and Outcome.');
         return;
@@ -689,26 +709,33 @@
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
       try{
-        // Generate id from the current tail, then UPSERT (appends if new)
+        // Generate id from current tail, then UPSERT (appends if new)
         const all = await XmlGitHubStorage.load();
         record.id = nextUniqueId(all);
         await XmlGitHubStorage.upsertOne(record);
 
-        // 🔄 Refresh UI immediately and again shortly after (API propagation)
-        try { await window.LegoSettings?.refresh?.(); } catch {}
-        setTimeout(()=>{ try { window.LegoSettings?.refresh?.(); } catch {} }, 250);
-
-        // Keep count pill in sync ASAP (optional)
-        if (Array.isArray(all)) {
-          const newCount = (all.length + 1); // upsert added one
-          const pill = countPill || document.getElementById('countPill');
-          if (pill) pill.textContent = `${newCount} records`;
-        }
-
-        // ✅ Close modal after successful save
+        // Close modal first (prevents scroll/overlay issues)
         closeModal();
 
-        // Ensure next click is Add mode (not Edit)
+        // 🔄 Try to reflect immediately (and tolerate propagation)
+        const expected = isNaN(beforeCount) ? NaN : (beforeCount + 1);
+        let updated = false;
+        if (!isNaN(expected)) {
+          updated = await robustRefresh(expected);
+        } else {
+          // If pill can't be parsed, still try a couple refresh calls
+          try { await window.LegoSettings?.refresh?.(); } catch {}
+          await sleep(250);
+          try { await window.LegoSettings?.refresh?.(); } catch {}
+        }
+
+        // As a last resort, force a one-time reload so user never has to refresh manually
+        if (!updated) {
+          window.location.reload();
+          return;
+        }
+
+        // Ensure next click is Add mode again
         if (idInput) idInput.value = '';
         if (delBtn)  delBtn.style.display = 'none';
         if (modalTitle) modalTitle.textContent = 'Add Record';
@@ -722,6 +749,7 @@
   }
 })();
 </script>
+
 
 
   <!-- CSS tip (your theme likely already has this):
@@ -794,5 +822,6 @@
 
 </body>
 </html>
+
 
 
