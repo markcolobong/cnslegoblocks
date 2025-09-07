@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
 
-  <!-- HARD GATE: prevents any script from showing #app before auth -->
+  <!-- HARD GATE: keep app hidden until session + token -->
   <script>
     (function(){
       const SESSION_KEY='lego_admin_logged_in';
@@ -165,7 +165,6 @@
         </div>
 
         <div class="actions">
-          <!-- make explicit non-submit -->
           <button type="button" class="btn btn-cta" id="gateEnter">Enter</button>
         </div>
         <div class="muted" id="gateError" style="display:none;color:#d33;margin-top:8px"></div>
@@ -292,7 +291,7 @@
     })();
   </script>
 
-  <!-- Login + PAT on same card + session (runs AFTER storage-xml-github.js) -->
+  <!-- Login + PAT on same card + session (2-step: creds → token) -->
   <script>
   (function(){
     const SESSION_KEY='lego_admin_logged_in';
@@ -306,10 +305,9 @@
     const enterBtn=document.getElementById('gateEnter');
     const errBox=document.getElementById('gateError');
 
-    // be explicit: never submit gate form
-    if (enterBtn) enterBtn.setAttribute('type','button');
+    if (enterBtn) enterBtn.setAttribute('type','button'); // never submit form
 
-    // #6: Manage Add Record button availability
+    // Keep "+ Add record" disabled until unlocked + token present
     const addBtn = document.getElementById('openAddBtn');
     function syncAddBtnEnabled(){
       if (!addBtn) return;
@@ -327,7 +325,7 @@
 
     let credsVerified=false, busy=false;
 
-    // resume session if token exists
+    // Resume if both session + token exist
     (async function resume(){
       const logged = sessionStorage.getItem(SESSION_KEY)==='true';
       const tok = sessionStorage.getItem(TOKEN_KEY);
@@ -335,28 +333,23 @@
         if (window.XmlGitHubStorage && typeof XmlGitHubStorage.setToken === 'function'){
           XmlGitHubStorage.setToken(tok);
         }
-        // flip UI
-        sessionStorage.setItem(SESSION_KEY,'true');
         document.documentElement.setAttribute('data-auth','unlocked');
         const app=document.getElementById('app'), gate=document.getElementById('gate');
         if (app) app.style.display='';
         if (gate) gate.style.display='none';
         if (logout) logout.style.display='';
-
-        try {
-          await (window.LegoSettings && typeof LegoSettings.refresh === 'function' ? LegoSettings.refresh() : Promise.resolve());
-        } catch {}
+        try{ if (window.LegoSettings?.refresh) await LegoSettings.refresh(); }catch{}
       }else{
         if (window.__authGuard) window.__authGuard.lock();
       }
     })();
 
+    // STEP 1: validate user/pass → reveal PAT row
     enterBtn?.addEventListener('click', async (e)=>{
       e.preventDefault();
       if (busy) return;
       clearErr();
 
-      // phase 1: user/pass
       if (!credsVerified){
         const u=(uEl.value||'').trim();
         const p=(pEl.value||'').trim();
@@ -368,7 +361,7 @@
         return;
       }
 
-      // phase 2: accept token and unlock (no remote probe)
+      // STEP 2: accept PAT, unlock immediately (no remote probe)
       const pat = sanitizeToken(patEl.value);
       if (!pat){ showErr('Please enter a valid GitHub token.'); patEl.focus(); return; }
 
@@ -383,16 +376,12 @@
         if (window.XmlGitHubStorage && typeof XmlGitHubStorage.setToken === 'function'){
           XmlGitHubStorage.setToken(pat);
         }
-
         document.documentElement.setAttribute('data-auth','unlocked');
         const app=document.getElementById('app'), gate=document.getElementById('gate');
         if (app) app.style.display='';
         if (gate) gate.style.display='none';
         if (logout) logout.style.display='';
-
-        try {
-          await (window.LegoSettings && typeof LegoSettings.refresh === 'function' ? LegoSettings.refresh() : Promise.resolve());
-        } catch {}
+        try{ if (window.LegoSettings?.refresh) await LegoSettings.refresh(); }catch{}
       }catch(err){
         console.error(err);
         showErr(err?.message || 'Unexpected error while unlocking.');
@@ -404,6 +393,7 @@
       }
     });
 
+    // Logout
     logout?.addEventListener('click', (e)=>{
       e.preventDefault();
       sessionStorage.removeItem(SESSION_KEY);
@@ -442,12 +432,12 @@
       if (form) form.reset();
       if (idInput) idInput.value = '';
       overlay.setAttribute('aria-hidden','false');
-      overlay.classList.add('open'); // show via class too
+      overlay.classList.add('open');
     }
     function closeModal(){
       if (!overlay) return;
       overlay.setAttribute('aria-hidden','true');
-      overlay.classList.remove('open'); // hide via class too
+      overlay.classList.remove('open');
     }
 
     addBtn?.addEventListener('click', (e)=>{
@@ -510,9 +500,7 @@
         try{
           await XmlGitHubStorage.upsertOne(record);
           if (idInput) idInput.value = record.id;
-          try {
-            await (window.LegoSettings && typeof LegoSettings.refresh === 'function' ? LegoSettings.refresh() : Promise.resolve());
-          } catch {}
+          try { if (window.LegoSettings?.refresh) await LegoSettings.refresh(); } catch {}
           closeModal();
         }catch(err){
           console.error(err);
@@ -534,9 +522,7 @@
 
         try{
           await XmlGitHubStorage.deleteOne(id);
-          try {
-            await (window.LegoSettings && typeof LegoSettings.refresh === 'function' ? LegoSettings.refresh() : Promise.resolve());
-          } catch {}
+          try { if (window.LegoSettings?.refresh) await LegoSettings.refresh(); } catch {}
           form.reset();
           if (idInput) idInput.value = '';
           closeModal();
@@ -549,8 +535,7 @@
   })();
   </script>
 
-  <!-- NOTE for CSS:
-       Ensure your CSS includes:
+  <!-- CSS note for modal visibility:
        .modal-overlay[aria-hidden="true"] { display:none; }
        .modal-overlay.open { display:block; }  (or flex)
   -->
