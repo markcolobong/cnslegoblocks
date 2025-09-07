@@ -721,5 +721,70 @@
        .modal-overlay[aria-hidden="true"] { display:none; }
        .modal-overlay[aria-hidden="false"] { display:flex; align-items:center; justify-content:center; }
   -->
+  <!-- Hard-fix: ensure "+ Add record" always opens the Add modal -->
+<script>
+(function(){
+  function openAddModal(){
+    var overlay    = document.getElementById('modalOverlay');
+    var form       = document.getElementById('recordForm');
+    var idInput    = document.getElementById('recordId');
+    var delBtn     = document.getElementById('editDeleteBtn');
+    var modalTitle = document.getElementById('modalTitle');
+
+    if (!overlay || !form) return;
+
+    // Reset to pristine Add state
+    try { form.reset(); } catch {}
+    if (idInput) idInput.value = '';
+    form.dataset.mode = 'create';
+    if (modalTitle) modalTitle.textContent = 'Add Record';
+    if (delBtn) delBtn.style.display = 'none';
+
+    // Show (CSS handles centering/sizing)
+    overlay.setAttribute('aria-hidden','false');
+
+    // Focus first useful field
+    var first = form.querySelector('input,select,textarea');
+    if (first) first.focus();
+  }
+
+  function bind(){
+    var btn = document.getElementById('openAddBtn');
+    if (!btn) return;
+
+    // avoid form submit semantics
+    btn.setAttribute('type','button');
+    btn.removeAttribute('disabled');
+
+    // Capture-phase handler so nothing else can block it
+    function captureOpen(e){
+      var t = e.target && e.target.closest ? e.target.closest('#openAddBtn') : null;
+      if (!t) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openAddModal();
+    }
+
+    // Earliest hooks
+    document.addEventListener('pointerdown', captureOpen, true);
+    document.addEventListener('click',       captureOpen, true);
+
+    // Direct fallback on the button
+    btn.onclick = function(e){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openAddModal();
+    };
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
+})();
+</script>
+
 </body>
 </html>
+
