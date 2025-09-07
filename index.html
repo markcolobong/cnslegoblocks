@@ -226,120 +226,92 @@
   <!-- Site JS -->
   <script src="assets/js/script.js"></script>
 
-  <!-- Public XML loader (no PAT; fetches from your public repo) -->
-  <script>
-  (function(){
-    const PUBLIC_XML = 'https://raw.githubusercontent.com/markcolobong/cnslegoblocks/main/data/records.xml';
-    const LIVE_KEY   = 'settings_records_live';     // end-user cache
-    const OLD_KEY    = 'settings_records_v10';      // legacy fallback
+<script>
+(function(){
+  // Try CORS-friendly CDN first; fallback to raw if needed
+  const XML_SOURCES = [
+    'https://cdn.jsdelivr.net/gh/markcolobong/cnslegoblocks@main/data/records.xml',
+    'https://raw.githubusercontent.com/markcolobong/cnslegoblocks/main/data/records.xml'
+  ];
+  const LIVE_KEY   = 'settings_records_live';
+  const OLD_KEY    = 'settings_records_v10';
 
-    let SETTINGS = null;
+  let SETTINGS = null;
 
-    // Small helpers
-    const txt = (el, sel) => {
-      const n = sel ? el.querySelector(sel) : el;
-      return (n && n.textContent || '').trim();
-    };
+  const txt = (el, sel) => { const n = sel ? el.querySelector(sel) : el; return (n && n.textContent || '').trim(); };
 
-    // Parse tiers flexibly (supports tier_1... OR T1, T1_1, or nested <tiers><tier code="1.1">)
-    function parseTiers(rec){
-      const out = { tier_1:'', tier_1_1:'', tier_1_2:'', tier_2:'', tier_2_1:'', tier_3:'', tier_3_1:'', tier_3_2:'' };
+  function parseTiers(rec){
+    const out = { tier_1:'', tier_1_1:'', tier_1_2:'', tier_2:'', tier_2_1:'', tier_3:'', tier_3_1:'', tier_3_2:'' };
+    Object.keys(out).forEach(k=>{
+      const tryNames = [k, k.toUpperCase(), k.replace(/_/g,'-'), k.replace('tier_','t'), k.replace('tier_','T')];
+      for (const name of tryNames){
+        const v = txt(rec, name);
+        if (v){ out[k]=v; break; }
+      }
+    });
+    rec.querySelectorAll('tiers tier, Tiers tier, Tiers Tier, tiers Tier').forEach(tn=>{
+      const code = (tn.getAttribute('code')||tn.getAttribute('id')||tn.getAttribute('name')||'').trim();
+      const val  = (tn.textContent||'').trim();
+      const map  = { '1':'tier_1','1.1':'tier_1_1','1.2':'tier_1_2','2':'tier_2','2.1':'tier_2_1','3':'tier_3','3.1':'tier_3_1','3.2':'tier_3_2' };
+      if (map[code] && val) out[map[code]] = val;
+    });
+    return out;
+  }
 
-      // 1) Exact names
-      Object.keys(out).forEach(k=>{
-        const tryNames = [k, k.toUpperCase(), k.replace(/_/g,'-'), k.replace('tier_','t'), k.replace('tier_','T')];
-        for (const name of tryNames){
-          const v = txt(rec, name);
-          if (v){ out[k]=v; break; }
-        }
-      });
+  function parseXmlToRecords(xmlText){
+    const dom = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (dom.querySelector('parsererror')) throw new Error('XML parse error');
+    let nodes = Array.from(dom.querySelectorAll('record'));
+    if (!nodes.length) nodes = Array.from(dom.querySelectorAll('item,row,entry,Record,Item,Row,Entry'));
+    return nodes.map(rec => ({
+      id: (rec.getAttribute('id') || txt(rec,'id, Id, ID') || '').trim(),
+      category: txt(rec,'category, Category, cat, Cat'),
+      phase:    txt(rec,'phase, Phase'),
+      activity: txt(rec,'activity, Activity, title, Title, name, Name'),
+      outcome:  txt(rec,'outcome, Outcome, keyOutcome, KeyOutcome, message, Message'),
+      presentationOwner: txt(rec,'presentationOwner, PresentationOwner'),
+      contentOwner:      txt(rec,'contentOwner, ContentOwner'),
+      notes:             txt(rec,'notes, Notes, note, Note'),
+      links: Array.from(rec.querySelectorAll('links link, Links link, links Link, Links Link'))
+              .map(l=>({ label: txt(l, 'label, Label, name, Name'), url: txt(l, 'url, Url, URL') }))
+              .filter(x=>x.label || x.url),
+      attachments: Array.from(rec.querySelectorAll('attachments file, Attachments file, attachments File, Attachments File'))
+              .map(f=>({ name: txt(f,'name, Name, label, Label'), url: txt(f,'url, Url, URL') }))
+              .filter(x=>x.name || x.url),
+      tiers: parseTiers(rec)
+    }));
+  }
 
-      // 2) <tiers><tier code="...">value</tier></tiers>
-      rec.querySelectorAll('tiers tier, Tiers tier, Tiers Tier, tiers Tier').forEach(tn=>{
-        const code = (tn.getAttribute('code')||tn.getAttribute('id')||tn.getAttribute('name')||'').trim();
-        const val  = (tn.textContent||'').trim();
-        const map  = { '1':'tier_1','1.1':'tier_1_1','1.2':'tier_1_2','2':'tier_2','2.1':'tier_2_1','3':'tier_3','3.1':'tier_3_1','3.2':'tier_3_2' };
-        if (map[code] && val) out[map[code]] = val;
-      });
-
-      return out;
-    }
-
-    function parseXmlToRecords(xmlText){
-      const dom = new DOMParser().parseFromString(xmlText, 'application/xml');
-      if (dom.querySelector('parsererror')) throw new Error('XML parse error');
-
-      // Prefer <record>, else try common alternates
-      let nodes = Array.from(dom.querySelectorAll('record'));
-      if (!nodes.length) nodes = Array.from(dom.querySelectorAll('item,row,entry,Record,Item,Row,Entry'));
-
-      const out = nodes.map(rec => {
-        const links = Array.from(rec.querySelectorAll('links link, Links link, links Link, Links Link')).map(l=>({
-          label: txt(l, 'label, Label, name, Name'),
-          url:   txt(l, 'url, Url, URL')
-        })).filter(x=>x.label || x.url);
-
-        const attachments = Array.from(rec.querySelectorAll('attachments file, Attachments file, attachments File, Attachments File')).map(f=>({
-          name: txt(f, 'name, Name, label, Label'),
-          url:  txt(f, 'url, Url, URL')
-        })).filter(x=>x.name || x.url);
-
-        return {
-          id: (rec.getAttribute('id') || txt(rec,'id, Id, ID') || '').trim(),
-          category: txt(rec,'category, Category, cat, Cat'),
-          phase:    txt(rec,'phase, Phase'),
-          activity: txt(rec,'activity, Activity, title, Title, name, Name'),
-          outcome:  txt(rec,'outcome, Outcome, keyOutcome, KeyOutcome, message, Message'),
-          presentationOwner: txt(rec,'presentationOwner, PresentationOwner'),
-          contentOwner:      txt(rec,'contentOwner, ContentOwner'),
-          notes:             txt(rec,'notes, Notes, note, Note'),
-          links, attachments,
-          tiers: parseTiers(rec)
-        };
-      });
-
-      return out;
-    }
-
-    async function refresh(){
+  async function fetchFirstGood(){
+    let lastErr;
+    for (const base of XML_SOURCES){
       try{
-        const res = await fetch(PUBLIC_XML + '?_=' + Date.now(), { cache: 'no-store' });
+        // IMPORTANT: simple GET, NO custom headers, so no preflight
+        const res = await fetch(base + '?_=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const xml = await res.text();
         const arr = parseXmlToRecords(xml);
-        SETTINGS = arr;
         try { localStorage.setItem(LIVE_KEY, JSON.stringify(arr)); } catch {}
         return arr;
-      }catch(e){
-        // Fallback to last good cache
-        try{
-          const v = localStorage.getItem(LIVE_KEY);
-          if (v){ SETTINGS = JSON.parse(v); return SETTINGS; }
-        }catch{}
-        try{
-          const v = localStorage.getItem(OLD_KEY);
-          if (v){ SETTINGS = JSON.parse(v); return SETTINGS; }
-        }catch{}
-        SETTINGS = [];
-        return SETTINGS;
-      }
+      }catch(e){ lastErr = e; }
     }
+    // fallback to cache if network/CDN failed
+    try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{}
+    try{ const v = localStorage.getItem(OLD_KEY);  if (v) return JSON.parse(v); }catch{}
+    if (lastErr) console.warn('records.xml fetch failed:', lastErr);
+    return [];
+  }
 
-    // Expose
-    window.ensureFreshRecords = refresh;
-    window.loadSettings = function(){
-      return SETTINGS
-        || (function(){
-             try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{}
-             try{ const v = localStorage.getItem(OLD_KEY);  if (v) return JSON.parse(v); }catch{}
-             return [];
-           })();
-    };
+  // Expose
+  window.ensureFreshRecords = async () => { const arr = await fetchFirstGood(); window.__records = arr; return arr; };
+  window.loadSettings = () => window.__records
+      || (function(){ try{ const v = localStorage.getItem(LIVE_KEY); if (v) return JSON.parse(v); }catch{} try{ const v = localStorage.getItem(OLD_KEY); if (v) return JSON.parse(v); }catch{} return []; })();
 
-    // Prefetch on load
-    document.addEventListener('DOMContentLoaded', () => { refresh(); });
-  })();
-  </script>
+  // Prefetch
+  document.addEventListener('DOMContentLoaded', () => { window.ensureFreshRecords(); });
+})();
+</script>
+
 
   <!-- Resolver logic -->
   <script>
@@ -682,3 +654,4 @@
   </script>
 </body>
 </html>
+
