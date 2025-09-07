@@ -293,7 +293,7 @@
   <script src="assets/js/lego-settings.js"></script>
 
   <!-- Login + PAT on same card + session -->
-  <script>
+ <script>
   (function(){
     const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
     const SESSION_KEY='lego_admin_logged_in';
@@ -306,6 +306,16 @@
     const patEl=document.getElementById('gatePat');
     const enterBtn=document.getElementById('gateEnter');
     const errBox=document.getElementById('gateError');
+
+    // #6: Manage Add Record button availability
+    const addBtn = document.getElementById('openAddBtn');
+    function syncAddBtnEnabled(){
+      if (!addBtn) return;
+      const unlocked = (document.documentElement.getAttribute('data-auth') === 'unlocked');
+      const hasToken = (window.XmlGitHubStorage && XmlGitHubStorage.hasToken && XmlGitHubStorage.hasToken());
+      addBtn.disabled = !(unlocked && hasToken);
+    }
+    setInterval(syncAddBtnEnabled, 500); // lightweight poll
 
     let credsVerified=false;
 
@@ -379,7 +389,7 @@
       uEl.value=''; pEl.value=''; patEl.value='';
     });
   })();
-  </script>
+</script>
 
   <!-- Add Record glue: open modal, save/delete via XmlGitHubStorage -->
   <script>
@@ -518,5 +528,6 @@ function closeModal(){
   </script>
 </body>
 </html>
+
 
 
