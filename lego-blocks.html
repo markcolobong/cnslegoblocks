@@ -522,7 +522,8 @@ const setTier = (idx, val) => {
       }
       
 // normalize actions so they always carry the new id
-const actionsCell = tr.querySelector('td.actions') || cells[cells.length - 1];
+const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
+
 if (actionsCell){
   actionsCell.querySelectorAll('a,button').forEach(el=>{
     el.setAttribute('data-id', rec.id);
@@ -680,11 +681,21 @@ if (actionsCell){
   const S  = (v)=>String(v ?? '');
 
   // Build a single TR that matches your table’s look & feel.
+
+  <script>
+(function(){
+  const $  = (id)=>document.getElementById(id);
+  const q  = (sel, el=document)=>el.querySelector(sel);
+  const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
+  const S  = (v)=>String(v ?? '');
+
+  // ✅ FIXED: no stray `};`, and action cell normalization is inside the right scope.
   function buildRow(rec, templateRow){
     let tr;
     if (templateRow){
       tr = templateRow.cloneNode(true);
       tr.dataset.id = rec.id;
+
       const cells = tr.querySelectorAll('td');
 
       const setText = (idx, val) => {
@@ -692,24 +703,23 @@ if (actionsCell){
         cells[idx].innerHTML = '';
         cells[idx].textContent = S(val);
       };
-const setTier = (idx, val) => {
-  if (!cells[idx]) return;
-  const cell = cells[idx];
-  // show ONLY a pill; clear any existing text/children
-  cell.innerHTML = '';
-  const pill = document.createElement('span');
-  pill.className = 'pill';
-  pill.setAttribute('data-value', S(val));
-  pill.textContent = S(val);
-  cell.appendChild(pill);
-};
+      const setTier = (idx, val) => {
+        if (!cells[idx]) return;
+        const cell = cells[idx];
+        cell.innerHTML = '';
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.setAttribute('data-value', S(val));
+        pill.textContent = S(val);
+        cell.appendChild(pill);
       };
 
+      // 0..3 text
       setText(0, rec.category);
       setText(1, rec.phase);
       setText(2, rec.activity);
       setText(3, rec.outcome);
-
+      // 4..11 tiers
       setTier(4,  rec.tiers?.tier_1);
       setTier(5,  rec.tiers?.tier_1_1);
       setTier(6,  rec.tiers?.tier_1_2);
@@ -719,12 +729,24 @@ const setTier = (idx, val) => {
       setTier(10, rec.tiers?.tier_3_1);
       setTier(11, rec.tiers?.tier_3_2);
 
-      const view = tr.querySelector('.view-link');
-      const del  = tr.querySelector('.delete-link');
-      if (view) view.setAttribute('data-id', rec.id);
-      if (del)  del.setAttribute('data-id', rec.id);
+      // normalize actions so View/Delete always target the new id
+      const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
+      if (actionsCell){
+        actionsCell.querySelectorAll('a,button').forEach(el=>{
+          el.setAttribute('data-id', rec.id);
+          const txt = (el.textContent || '').toLowerCase();
+          if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
+            el.classList.add('view-link');
+            el.setAttribute('data-action','view');
+          }
+          if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
+            el.classList.add('delete-link');
+            el.setAttribute('data-action','delete');
+          }
+        });
+      }
     } else {
-      // Fallback when the table is initially empty
+      // Fallback when table was empty
       tr = document.createElement('tr');
       tr.dataset.id = rec.id;
       const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
@@ -735,12 +757,8 @@ const setTier = (idx, val) => {
       tr.appendChild(td(rec.activity,'activity'));
       tr.appendChild(td(rec.outcome,'outcome'));
 
-      const tierKeys = ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'];
-      tierKeys.forEach(k=>{
-        const cell = document.createElement('td');
-        cell.className = 'tier-col';
-        cell.appendChild(mk(rec.tiers?.[k]));
-        tr.appendChild(cell);
+      ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'].forEach(k=>{
+        const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); tr.appendChild(cell);
       });
 
       const actions=document.createElement('td');
@@ -752,25 +770,14 @@ const setTier = (idx, val) => {
       `;
       tr.appendChild(actions);
     }
-  // normalize actions so they always carry the new id
-const actionsCell = tr.querySelector('td.actions') || tr.querySelector('td:last-child');
-if (actionsCell){
-  actionsCell.querySelectorAll('a,button').forEach(el=>{
-    el.setAttribute('data-id', rec.id);
-    const txt = (el.textContent || '').toLowerCase();
-    if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
-      el.classList.add('view-link');
-      el.setAttribute('data-action','view');
-    }
-    if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
-      el.classList.add('delete-link');
-      el.setAttribute('data-action','delete');
-    }
-  });
-}
-
     return tr;
   }
+
+  // (the rest of this script block stays as you have it)
+})();
+</script>
+
+  
 
   function setCount(n){
     const pill = $('countPill');
@@ -911,6 +918,7 @@ if (actionsCell){
   
 </body>
 </html>
+
 
 
 
