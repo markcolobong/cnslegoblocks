@@ -465,18 +465,24 @@ function closeModal(){
         const prevLabel = submitBtn ? submitBtn.textContent : '';
         if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
-        try{
-          await XmlGitHubStorage.upsertOne(record);
-          if (idInput) idInput.value = record.id;
-          if (window.LegoSettings?.refresh) await LegoSettings.refresh();
-          closeModal();
-        }catch(err){
-          console.error(err);
-          alert('Save failed: ' + (err?.message || err));
-        }finally{
-          if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-        }
-      });
+       try{
+  await XmlGitHubStorage.deleteOne(id);
+
+  // Safe, non-blocking refresh
+  try {
+    await (window.LegoSettings && typeof LegoSettings.refresh === 'function'
+      ? LegoSettings.refresh()
+      : Promise.resolve());
+  } catch {}
+
+  form.reset();
+  if (idInput) idInput.value = '';
+  closeModal();
+}catch(err){
+  console.error(err);
+  alert('Delete failed: ' + (err?.message || err));
+}
+
 
       const delBtn = $('editDeleteBtn');
       delBtn?.addEventListener('click', async ()=>{
@@ -489,19 +495,28 @@ function closeModal(){
         if (!confirm('Delete this record?')) return;
 
         try{
-          await XmlGitHubStorage.deleteOne(id);
-          if (window.LegoSettings?.refresh) await LegoSettings.refresh();
-          form.reset();
-          if (idInput) idInput.value = '';
-          closeModal();
-        }catch(err){
-          console.error(err);
-          alert('Delete failed: ' + (err?.message || err));
-        }
-      });
+  await XmlGitHubStorage.upsertOne(record);
+  if (idInput) idInput.value = record.id;
+
+  // Safe, non-blocking refresh
+  try {
+    await (window.LegoSettings && typeof LegoSettings.refresh === 'function'
+      ? LegoSettings.refresh()
+      : Promise.resolve());
+  } catch {}
+
+  closeModal();
+}catch(err){
+  console.error(err);
+  alert('Save failed: ' + (err?.message || err));
+}finally{
+  if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
+}
+
     }
   })();
   </script>
 </body>
 </html>
+
 
