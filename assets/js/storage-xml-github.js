@@ -1,5 +1,6 @@
 // GitHub XML storage using Contents API directly from the browser
-// (cache-busted reads so new commits show up immediately)
+// Now returns the exact commit SHA on save and stores it in sessionStorage,
+// and load() prefers that SHA to guarantee fresh reads right after a save.
 
 (function(){
   const OWNER     = 'markcolobong';
@@ -27,6 +28,16 @@
   function _withBust(url){
     const sep = url.includes('?') ? '&' : '?';
     return `${url}${sep}_ts=${Date.now()}`;
+  }
+
+  const SS_KEYS = {
+    LAST_COMMIT_SHA: 'lego_last_commit_sha',
+  };
+  function setLastCommitSha(sha){
+    try { sessionStorage.setItem(SS_KEYS.LAST_COMMIT_SHA, sha || ''); } catch{}
+  }
+  function getLastCommitSha(){
+    try { return sessionStorage.getItem(SS_KEYS.LAST_COMMIT_SHA) || ''; } catch { return ''; }
   }
 
   async function ghFetch(url, init={}){
@@ -72,7 +83,7 @@
       const text = tag => (node.querySelector(tag)?.textContent ?? '');
       const tier = name => {
         const el = node.querySelector(`Tiers > T[name="${cssEscape(name)}"]`);
-        // DO NOT inject defaults; blank if missing
+        // Do not inject defaults; blank if missing
         return el ? el.textContent : '';
       };
       const id = node.getAttribute('id') || '';
@@ -145,18 +156,20 @@
   }
 
   async function getCurrentSha(){
+    // Contents API metadata; cache-busted
     const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
     if (res.status === 200){
       const meta = await res.json();
       return meta.sha || null;
     }
-    if (res.status === 404) return null; // file doesn't exist yet
+    if (res.status === 404) return null;
     const t = await res.text();
     throw new Error('Failed reading file metadata: ' + t);
   }
 
   function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
+  // Returns the commit SHA on success
   async function saveAllToGitHub(records, message){
     if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
 
@@ -177,7 +190,20 @@
         })
       });
 
-      if (res.ok) return; // success
+      if (res.ok) {
+        // Parse body to extract commit sha and store it
+        let commitSha = '';
+        try {
+          const body = await res.json();
+          commitSha = body?.commit?.sha || '';
+        } catch {}
+        if (commitSha) setLastCommitSha(commitSha);
+        // Also emit a DOM event in case the UI wants to hook it
+        try {
+          window.dispatchEvent(new CustomEvent('lego:recordsSaved', { detail: { commitSha } }));
+        } catch {}
+        return commitSha;
+      }
 
       let errText = '';
       try { errText = (await res.json())?.message || ''; } catch { try { errText = await res.text(); } catch {} }
@@ -191,14 +217,32 @@
     }
   }
 
+  async function loadAtRef(ref){
+    // Prefer a specific commit ref if provided (bypasses branch pointer lag)
+    const r = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(ref)}`, { method: 'GET' });
+    if (!r.ok) return [];
+    const j      = await r.json();
+    const xmlTxt = decodeBase64Utf8((j.content || '').replace(/\n/g,''));
+    return parseXmlToRecords(xmlTxt);
+  }
+
   /* ===================== public API ===================== */
   const XmlGitHubStorage = {
     setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
     hasToken(){ return !!GITHUB_TOKEN; },
 
+    // Try last known commit SHA first, then branch, then raw (public)
     async load(){
       try{
+        const stickySha = getLastCommitSha();
+
         if (GITHUB_TOKEN) {
+          if (stickySha) {
+            try {
+              const recs = await loadAtRef(stickySha);
+              if (Array.isArray(recs) && recs.length >= 0) return recs;
+            } catch {}
+          }
           const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
           if (res.status === 404) return [];
           if (!res.ok) return [];
@@ -206,6 +250,7 @@
           const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
           return parseXmlToRecords(xmlText);
         }
+
         const res = await fetch(_withBust(RAW_URL), { cache: 'no-store' });
         if(!res.ok) return [];
         const text = await res.text();
@@ -219,7 +264,7 @@
       const all = await this.load();
       const idx = all.findIndex(r => r.id === record.id);
       if (idx >= 0) all[idx] = record; else all.push(record);
-      await saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
+      return saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
     },
 
     async updateOneById(record){
@@ -228,18 +273,21 @@
       const idx = all.findIndex(r => r.id === record.id);
       if (idx === -1) throw new Error('Record not found: ' + record.id);
       all[idx] = record;
-      await saveAllToGitHub(all, 'Update record ' + record.id + ' from Lego Settings UI');
+      return saveAllToGitHub(all, 'Update record ' + record.id + ' from Lego Settings UI');
     },
 
     async replaceAll(records){
-      await saveAllToGitHub(records, 'Replace all records from Lego Settings UI');
+      return saveAllToGitHub(records, 'Replace all records from Lego Settings UI');
     },
 
     async deleteOne(id){
       const all = await this.load();
       const next = all.filter(r => r.id !== id);
-      await saveAllToGitHub(next, 'Delete record from Lego Settings UI');
-    }
+      return saveAllToGitHub(next, 'Delete record from Lego Settings UI');
+    },
+
+    // Optional explicit ref load (if you want to force a UI refresh at a specific commit)
+    async loadAtRef(ref){ return loadAtRef(ref); }
   };
 
   if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
