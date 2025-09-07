@@ -425,7 +425,7 @@
   })();
   </script>
 
-  <!-- ADD: Append row only AFTER modal closes (post-save) + force fresh load from XML -->
+  <!-- ADD: Append row only AFTER modal closes (post-save) + force fresh load from XML (commit-aware) -->
   <script>
   (function(){
     const $  = (id)=>document.getElementById(id);
@@ -593,7 +593,7 @@
             appendRowImmediate(rec);
             const c=parseCount(); if (!isNaN(c)) setCount(c+1);
 
-            // Fresh, cache-busted load → canonical re-render (keeps immediately added row consistent)
+            // Fresh, commit-aware load → canonical re-render (uses session-stored commit SHA from save)
             if (window.forceFreshLegoRender) { try{ await window.forceFreshLegoRender(); }catch{} }
           }
         }
