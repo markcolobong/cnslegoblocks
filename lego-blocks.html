@@ -520,6 +520,24 @@ const setTier = (idx, val) => {
         `;
         tr.appendChild(actions);
       }
+      
+// normalize actions so they always carry the new id
+const actionsCell = tr.querySelector('td.actions') || cells[cells.length - 1];
+if (actionsCell){
+  actionsCell.querySelectorAll('a,button').forEach(el=>{
+    el.setAttribute('data-id', rec.id);
+    // add tolerant classnames / attrs so delegated handlers can find them
+    const txt = (el.textContent || '').toLowerCase();
+    if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
+      el.classList.add('view-link');
+      el.setAttribute('data-action','view');
+    }
+    if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
+      el.classList.add('delete-link');
+      el.setAttribute('data-action','delete');
+    }
+  });
+}
 
       tb.appendChild(tr);
     }
@@ -734,6 +752,23 @@ const setTier = (idx, val) => {
       `;
       tr.appendChild(actions);
     }
+  // normalize actions so they always carry the new id
+const actionsCell = tr.querySelector('td.actions') || tr.querySelector('td:last-child');
+if (actionsCell){
+  actionsCell.querySelectorAll('a,button').forEach(el=>{
+    el.setAttribute('data-id', rec.id);
+    const txt = (el.textContent || '').toLowerCase();
+    if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
+      el.classList.add('view-link');
+      el.setAttribute('data-action','view');
+    }
+    if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
+      el.classList.add('delete-link');
+      el.setAttribute('data-action','delete');
+    }
+  });
+}
+
     return tr;
   }
 
@@ -805,9 +840,31 @@ const setTier = (idx, val) => {
   window.addEventListener('focus', ()=> hardRepaint('focus'));
 })();
 </script>
+  
+<script>
+(function(){
+  // Handle View Details clicks even on freshly appended rows
+  document.addEventListener('click', function(e){
+    const el = e.target.closest('[data-action="view"], .view-link, .view-details, .btn-view');
+    if (!el) return;
+    e.preventDefault();
+
+    const id = el.getAttribute('data-id') || el.closest('tr')?.dataset.id;
+    if (!id) return;
+
+    // Prefer your existing API if it exists
+    if (window.LegoSettings?.openDetailsById) { try{ LegoSettings.openDetailsById(id); }catch{} return; }
+    if (window.LegoSettings?.openDetails)     { try{ LegoSettings.openDetails(id);     }catch{} return; }
+
+    // Fallback: emit an event for lego-settings.js to catch
+    try { window.dispatchEvent(new CustomEvent('lego:openDetails', { detail: { id } })); } catch {}
+  }, true);
+})();
+</script>
 
 </body>
 </html>
+
 
 
 
