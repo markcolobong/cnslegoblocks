@@ -8,6 +8,14 @@
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
 
+  <!-- Modal centering/sizing to match Edit -->
+  <style>
+    /* Ensure both Add & Edit modals are centered and consistent */
+    .modal-overlay { position: fixed; inset: 0; display: none; z-index: 2000; }
+    .modal-overlay[aria-hidden="false"] { display: flex; align-items: center; justify-content: center; }
+    .modal-overlay .modal { max-width: 960px; width: min(960px, 92vw); max-height: 90vh; overflow: auto; }
+  </style>
+
   <!-- HARD GATE: keep app hidden until session + token -->
   <script>
     (function(){
@@ -571,7 +579,7 @@
       if (modalTitle) modalTitle.textContent = 'Add Record';
       if (delBtn) delBtn.style.display = 'none';
       if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
-      overlay.setAttribute('aria-hidden','false'); // let CSS center it (same as Edit)
+      overlay.setAttribute('aria-hidden','false'); // centered by CSS (same as Edit)
       const first = form.querySelector('input,select,textarea');
       first && first.focus();
     }
@@ -686,14 +694,15 @@
           all.push(record);
           await XmlGitHubStorage.replaceAll(all);
 
-          // Refresh UI immediately and once more to ensure consistency
+          // 🔄 Refresh UI immediately and again shortly after
           try { await window.LegoSettings?.refresh?.(); } catch {}
           setTimeout(()=>{ try { window.LegoSettings?.refresh?.(); } catch {} }, 250);
           if (countPill) countPill.textContent = `${all.length} records`;
 
-          closeModal(); // close after successful save
+          // ✅ Close modal after successful save
+          closeModal();
 
-          // Reset back to Add mode defaults for the next open
+          // Ensure next open is Add mode again
           if (idInput) idInput.value = '';
           if (delBtn)  delBtn.style.display = 'none';
           if (modalTitle) modalTitle.textContent = 'Add Record';
