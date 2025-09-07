@@ -653,7 +653,161 @@
   }
 })();
 </script>
+<script>
+(function(){
+  const SS_LAST_SHA = 'lego_last_commit_sha';
+
+  const $  = (id)=>document.getElementById(id);
+  const q  = (sel, el=document)=>el.querySelector(sel);
+  const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
+  const S  = (v)=>String(v ?? '');
+
+  // Build a single TR that matches your table’s look & feel.
+  function buildRow(rec, templateRow){
+    let tr;
+    if (templateRow){
+      tr = templateRow.cloneNode(true);
+      tr.dataset.id = rec.id;
+      const cells = tr.querySelectorAll('td');
+
+      const setText = (idx, val) => {
+        if (!cells[idx]) return;
+        cells[idx].innerHTML = '';
+        cells[idx].textContent = S(val);
+      };
+      const setTier = (idx, val) => {
+        if (!cells[idx]) return;
+        const cell = cells[idx];
+        let pill = cell.querySelector('.pill, .badge, .chip, span');
+        if (!pill){
+          cell.innerHTML = '';
+          cell.textContent = S(val);
+          return;
+        }
+        pill.textContent = S(val);
+        pill.setAttribute('data-value', S(val));
+      };
+
+      setText(0, rec.category);
+      setText(1, rec.phase);
+      setText(2, rec.activity);
+      setText(3, rec.outcome);
+
+      setTier(4,  rec.tiers?.tier_1);
+      setTier(5,  rec.tiers?.tier_1_1);
+      setTier(6,  rec.tiers?.tier_1_2);
+      setTier(7,  rec.tiers?.tier_2);
+      setTier(8,  rec.tiers?.tier_2_1);
+      setTier(9,  rec.tiers?.tier_3);
+      setTier(10, rec.tiers?.tier_3_1);
+      setTier(11, rec.tiers?.tier_3_2);
+
+      const view = tr.querySelector('.view-link');
+      const del  = tr.querySelector('.delete-link');
+      if (view) view.setAttribute('data-id', rec.id);
+      if (del)  del.setAttribute('data-id', rec.id);
+    } else {
+      // Fallback when the table is initially empty
+      tr = document.createElement('tr');
+      tr.dataset.id = rec.id;
+      const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
+      const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
+
+      tr.appendChild(td(rec.category,'cat'));
+      tr.appendChild(td(rec.phase,'phase'));
+      tr.appendChild(td(rec.activity,'activity'));
+      tr.appendChild(td(rec.outcome,'outcome'));
+
+      const tierKeys = ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'];
+      tierKeys.forEach(k=>{
+        const cell = document.createElement('td');
+        cell.className = 'tier-col';
+        cell.appendChild(mk(rec.tiers?.[k]));
+        tr.appendChild(cell);
+      });
+
+      const actions=document.createElement('td');
+      actions.className='actions';
+      actions.innerHTML = `
+        <a href="#" class="tiny view-link" data-id="${rec.id}">View</a>
+        <span class="sep">•</span>
+        <a href="#" class="tiny danger delete-link" data-id="${rec.id}">Delete</a>
+      `;
+      tr.appendChild(actions);
+    }
+    return tr;
+  }
+
+  function setCount(n){
+    const pill = $('countPill');
+    if (pill) pill.textContent = `${n} records`;
+  }
+
+  // Hard repaint from XML (commit-aware)
+  async function loadFreshRecords(){
+    const stickySha = (sessionStorage.getItem(SS_LAST_SHA) || '').trim();
+    try{
+      if (stickySha && window.XmlGitHubStorage?.loadAtRef){
+        const recs = await XmlGitHubStorage.loadAtRef(stickySha);
+        if (Array.isArray(recs)) return recs;
+      }
+    }catch{}
+    // Fallback to normal load (already cache-busted in storage file)
+    try { return await XmlGitHubStorage.load(); } catch { return []; }
+  }
+
+  async function hardRepaint(reason){
+    const tb = q('#dataTable tbody');
+    if (!tb) return;
+    // Clear any active search filter (this mimics what you do manually)
+    const search = $('search');
+    if (search){
+      const prev = search.value;
+      if (prev !== '') {
+        search.value = '';
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+
+    // Fetch the freshest possible XML and rebuild
+    const records = await loadFreshRecords();
+
+    // Keep a template row (first existing row) for consistent formatting
+    const templateRow = tb.querySelector('tr');
+
+    const frag = document.createDocumentFragment();
+    (records || []).forEach(rec => frag.appendChild(buildRow(rec, templateRow)));
+    tb.innerHTML = '';
+    tb.appendChild(frag);
+    setCount(records.length);
+
+    // Let existing code re-bind anything it delegates after DOM update
+    try { window.dispatchEvent(new CustomEvent('lego:tableRepainted', { detail: { reason, count: records.length } })); } catch {}
+  }
+
+  // ---- Wire-up: repaint on all the right lifecycle moments ----
+  // After a successful save (our storage emits this)
+  window.addEventListener('lego:recordsSaved', ()=> hardRepaint('saved'));
+
+  // On first unlock (login success)
+  (function hookUnlock(){
+    if (!window.__authGuard || typeof __authGuard.unlock !== 'function') return;
+    const orig = __authGuard.unlock.bind(__authGuard);
+    __authGuard.unlock = function(){
+      const r = orig();
+      hardRepaint('unlock');
+      return r;
+    };
+  })();
+
+  // On initial load/refresh and when tab refocuses
+  document.addEventListener('DOMContentLoaded', ()=> hardRepaint('domready'));
+  window.addEventListener('pageshow', ()=> hardRepaint('pageshow'));
+  window.addEventListener('focus', ()=> hardRepaint('focus'));
+})();
+</script>
 
 </body>
 </html>
+
 
