@@ -10,42 +10,37 @@
 
   <!-- HARD GATE: keep app hidden until session + token -->
   <script>
-    (function () {
-      const SESSION_KEY = 'lego_admin_logged_in';
-      const TOKEN_KEY   = 'lego_admin_pat';
-      document.documentElement.setAttribute('data-auth', 'locked');
+    (function(){
+      const SESSION_KEY='lego_admin_logged_in';
+      const TOKEN_KEY='lego_admin_pat';
+      document.documentElement.setAttribute('data-auth','locked');
 
       document.addEventListener('DOMContentLoaded', () => {
         const app  = document.getElementById('app');
         const gate = document.getElementById('gate');
-
-        function locked() {
-          return !(sessionStorage.getItem(SESSION_KEY) === 'true' && sessionStorage.getItem(TOKEN_KEY));
+        function locked(){
+          return !(sessionStorage.getItem(SESSION_KEY)==='true' && sessionStorage.getItem(TOKEN_KEY));
         }
-        function enforce() {
+        function enforce(){
           if (!app || !gate) return;
-          if (locked()) {
-            app.style.display  = 'none';
-            gate.style.display = '';
-          }
+          if (locked()){ app.style.display='none'; gate.style.display=''; }
         }
         enforce();
-
         const mo = new MutationObserver(enforce);
-        mo.observe(document.body, { attributes: true, childList: true, subtree: true });
+        mo.observe(document.body, { attributes:true, childList:true, subtree:true });
 
         window.__authGuard = {
-          unlock() {
-            sessionStorage.setItem(SESSION_KEY, 'true');
-            document.documentElement.setAttribute('data-auth', 'unlocked');
+          unlock(){
+            sessionStorage.setItem(SESSION_KEY,'true');
+            document.documentElement.setAttribute('data-auth','unlocked');
             mo.disconnect();
-            if (app)  app.style.display  = '';
-            if (gate) gate.style.display = 'none';
+            if (app) app.style.display='';
+            if (gate) gate.style.display='none';
           },
-          lock() {
+          lock(){
             sessionStorage.removeItem(SESSION_KEY);
             sessionStorage.removeItem(TOKEN_KEY);
-            document.documentElement.setAttribute('data-auth', 'locked');
+            document.documentElement.setAttribute('data-auth','locked');
             enforce();
           }
         };
@@ -280,12 +275,237 @@
   <script src="assets/js/storage-xml-github.js"></script>
   <script src="assets/js/lego-settings.js"></script>
 
+  <!-- Safety net: if the external adapter didn't load, define it inline -->
+  <script>
+  (function(){
+    if (window.XmlGitHubStorage) return; // external file loaded fine
+
+    console.warn('[XmlGitHubStorage] Fallback inline adapter engaged (external script missing).');
+
+    const OWNER  = 'markcolobong';
+    const REPO   = 'cnslegoblocks';
+    const BRANCH = 'main';
+    const FILE_PATH = 'data/records.xml';
+
+    const RAW_URL      = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}`;
+    const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`;
+
+    let GITHUB_TOKEN = null;
+
+    function sanitizeToken(t){
+      return (t||'').trim()
+        .replace(/^[\"']+|[\"']+$/g,'')
+        .replace(/\s+/g,'')
+        .replace(/[\u200B-\u200D\uFEFF]/g,'');
+    }
+    async function ghFetch(url, init={}){
+      const headers = Object.assign({
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }, init.headers || {});
+      const token = sanitizeToken(GITHUB_TOKEN || '');
+      if (!token) return fetch(url, Object.assign({}, init, { headers }));
+      let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
+      if (res.status !== 401) return res;
+      res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `Bearer ${token}` }) }));
+      if (res.status !== 401) return res;
+      return fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: 'Basic ' + btoa('x:' + token) }) }));
+    }
+
+    function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
+    function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
+    function decodeBase64Utf8(b64){
+      try { return decodeURIComponent(escape(atob(b64))); } catch { return ''; }
+    }
+
+    function parseXmlToRecords(xmlText){
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlText, 'application/xml');
+      if (doc.querySelector('parsererror')) return [];
+      const root = doc.querySelector('Records');
+      if (!root) return [];
+
+      const records = [];
+      root.querySelectorAll('Record').forEach(node => {
+        const text = tag => (node.querySelector(tag)?.textContent ?? '');
+        const tier = name => {
+          const el = node.querySelector(`Tiers > T[name="${cssEscape(name)}"]`);
+          return el ? el.textContent : 'Applicable';
+        };
+        const id = node.getAttribute('id') || '';
+
+        const links = [];
+        node.querySelectorAll('Links > Link').forEach(L => {
+          links.push({ label: L.getAttribute('label') || '', url: L.getAttribute('url') || '' });
+        });
+
+        records.push({
+          id,
+          category: text('Category'),
+          phase: text('Phase'),
+          activity: text('Activity'),
+          outcome: text('Outcome'),
+          presentationOwner: text('PresentationOwner'),
+          contentOwner: text('ContentOwner'),
+          notes: text('Notes'),
+          links,
+          tiers: {
+            tier_1:  tier('tier_1'),
+            tier_1_1:tier('tier_1_1'),
+            tier_1_2:tier('tier_1_2'),
+            tier_2:  tier('tier_2'),
+            tier_2_1:tier('tier_2_1'),
+            tier_3:  tier('tier_3'),
+            tier_3_1:tier('tier_3_1'),
+            tier_3_2:tier('tier_3_2')
+          }
+        });
+      });
+      return records;
+    }
+
+    function buildXml(records){
+      const esc = s => String(s ?? '')
+        .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+      const escAttr = s => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;')
+        .replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&apos;");
+
+      const tier = (name, val) => `    <T name="${escAttr(name)}">${esc(val)}</T>\n`;
+      const link = (l) => `    <Link label="${escAttr(l.label||'')}" url="${escAttr(l.url||'')}"/>\n`;
+
+      let out = `<?xml version="1.0" encoding="UTF-8"?>\n<Records version="1">\n`;
+      for (const r of records) {
+        out += `  <Record id="${escAttr(r.id)}">\n`;
+        out += `    <Category>${esc(r.category)}</Category>\n`;
+        out += `    <Phase>${esc(r.phase)}</Phase>\n`;
+        out += `    <Activity>${esc(r.activity)}</Activity>\n`;
+        out += `    <Outcome>${esc(r.outcome)}</Outcome>\n`;
+        out += `    <PresentationOwner>${esc(r.presentationOwner)}</PresentationOwner>\n`;
+        out += `    <ContentOwner>${esc(r.contentOwner)}</ContentOwner>\n`;
+        out += `    <Notes>${esc(r.notes)}</Notes>\n`;
+        out += `    <Links>\n${(r.links||[]).map(link).join('')}    </Links>\n`;
+        out += `    <Tiers>\n`;
+        out += tier('tier_1',  r.tiers?.tier_1);
+        out += tier('tier_1_1',r.tiers?.tier_1_1);
+        out += tier('tier_1_2',r.tiers?.tier_1_2);
+        out += tier('tier_2',  r.tiers?.tier_2);
+        out += tier('tier_2_1',r.tiers?.tier_2_1);
+        out += tier('tier_3',  r.tiers?.tier_3);
+        out += tier('tier_3_1',r.tiers?.tier_3_1);
+        out += tier('tier_3_2',r.tiers?.tier_3_2);
+        out += `    </Tiers>\n`;
+        out += `  </Record>\n`;
+      }
+      out += `</Records>\n`;
+      return out;
+    }
+
+    async function getCurrentSha(){
+      const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+      if (res.status === 200){
+        const meta = await res.json();
+        return meta.sha || null;
+      }
+      if (res.status === 404) return null;
+      const t = await res.text();
+      throw new Error('Failed reading file metadata: ' + t);
+    }
+
+    async function saveAllToGitHub(records, message){
+      if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
+
+      const xml = buildXml(records);
+      const content = base64EncodeUtf8(xml);
+      let sha = await getCurrentSha();
+
+      async function put(shaToUse){
+        return ghFetch(CONTENTS_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message || 'Update data/records.xml',
+            content,
+            sha: shaToUse || undefined,
+            branch: BRANCH
+          })
+        });
+      }
+
+      let res = await put(sha);
+      if (!res.ok) {
+        let errBody;
+        try { errBody = await res.json(); } catch { errBody = {}; }
+        const msg = (errBody && errBody.message) ? String(errBody.message) : '';
+        const isShaMismatch = res.status === 409 ||
+                              res.status === 422 ||
+                              /does not match/i.test(msg) ||
+                              /sha/i.test(msg);
+        if (isShaMismatch) {
+          sha = await getCurrentSha();
+          res = await put(sha);
+        } else {
+          throw new Error(msg || ('GitHub save failed ('+res.status+')'));
+        }
+      }
+
+      if (!res.ok) {
+        let err;
+        try { err = await res.json(); } catch { err = {}; }
+        throw new Error(err.message || ('GitHub save failed ('+res.status+')'));
+      }
+    }
+
+    const XmlGitHubStorage = {
+      setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
+      hasToken(){ return !!GITHUB_TOKEN; },
+
+      async load(){
+        try{
+          if (GITHUB_TOKEN) {
+            const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET' });
+            if (res.status === 404) return [];
+            if (!res.ok) return [];
+            const json = await res.json();
+            const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
+            return parseXmlToRecords(xmlText);
+          }
+          const res = await fetch(RAW_URL, { cache: 'no-store' });
+          if(!res.ok) return [];
+          const text = await res.text();
+          return parseXmlToRecords(text);
+        }catch{
+          return [];
+        }
+      },
+
+      async upsertOne(record){
+        const all = await this.load();
+        const idx = all.findIndex(r => r.id === record.id);
+        if (idx >= 0) all[idx] = record; else all.push(record);
+        await saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
+      },
+
+      async replaceAll(records){
+        await saveAllToGitHub(records, 'Replace all records from Lego Settings UI');
+      },
+
+      async deleteOne(id){
+        const all = await this.load();
+        const next = all.filter(r => r.id !== id);
+        await saveAllToGitHub(next, 'Delete record from Lego Settings UI');
+      }
+    };
+
+    window.XmlGitHubStorage = XmlGitHubStorage;
+  })();
+  </script>
+
   <!-- Block any legacy PAT prompt -->
   <script>
-    (function () {
+    (function(){
       const _prompt = window.prompt;
-      window.prompt = function (msg, def) {
-        if (/(personal access token|pat|records\.xml)/i.test(String(msg || ''))) return '';
+      window.prompt = function(msg, def){
+        if (/(personal access token|pat|records\.xml)/i.test(String(msg||''))) return '';
         return _prompt ? _prompt(msg, def) : null;
       };
     })();
@@ -293,274 +513,261 @@
 
   <!-- Login + PAT (STRICT: verify token with GitHub before unlock) -->
   <script>
-    (function () {
-      // Repo to verify against
-      const OWNER = 'markcolobong', REPO = 'cnslegoblocks', BRANCH = 'main', PATH = 'data/records.xml';
-      const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${encodeURIComponent(BRANCH)}`;
+  (function(){
+    const OWNER='markcolobong', REPO='cnslegoblocks', BRANCH='main', PATH='data/records.xml';
+    const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}?ref=${encodeURIComponent(BRANCH)}`;
 
-      // Session keys
-      const SESSION_KEY = 'lego_admin_logged_in';
-      const TOKEN_KEY   = 'lego_admin_pat';
+    const SESSION_KEY='lego_admin_logged_in';
+    const TOKEN_KEY='lego_admin_pat';
 
-      // Gate elements
-      const logout  = document.getElementById('logoutLink');
-      const uEl     = document.getElementById('gateUser');
-      const pEl     = document.getElementById('gatePass');
-      const patRow  = document.getElementById('patRow');
-      const patEl   = document.getElementById('gatePat');
-      const enterBtn= document.getElementById('gateEnter');
-      const errBox  = document.getElementById('gateError');
+    const logout=document.getElementById('logoutLink');
+    const uEl=document.getElementById('gateUser');
+    const pEl=document.getElementById('gatePass');
+    const patRow=document.getElementById('patRow');
+    const patEl=document.getElementById('gatePat');
+    const enterBtn=document.getElementById('gateEnter');
+    const errBox=document.getElementById('gateError');
 
-      if (enterBtn) enterBtn.setAttribute('type', 'button'); // never submit form
+    if (enterBtn) enterBtn.setAttribute('type','button');
 
-      function sanitizeToken(t){
-        return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
+    function sanitizeToken(t){
+      return (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
+    }
+    function showErr(m){ errBox.textContent=m; errBox.style.display=''; }
+    function clearErr(){ errBox.textContent=''; errBox.style.display='none'; }
+
+    async function verifyToken(pat){
+      const headers = { 'X-GitHub-Api-Version':'2022-11-28' };
+      try{
+        let r = await fetch(CONTENTS_URL, { cache:'no-store', headers:{...headers, Authorization:`token ${pat}`} });
+        if (r.status !== 401) return r.status;
+        r = await fetch(CONTENTS_URL, { cache:'no-store', headers:{...headers, Authorization:`Bearer ${pat}`} });
+        if (r.status !== 401) return r.status;
+        r = await fetch(CONTENTS_URL, { cache:'no-store', headers:{...headers, Authorization:'Basic '+btoa('x:'+pat)} });
+        return r.status;
+      }catch{
+        return 0;
       }
-      function showErr(m){ errBox.textContent = m; errBox.style.display = ''; }
-      function clearErr(){ errBox.textContent = ''; errBox.style.display = 'none'; }
+    }
 
-      // Verify PAT against GitHub: success = 200 (file exists) or 404 (file missing but token OK)
-      async function verifyToken(pat){
-        const headers = { 'X-GitHub-Api-Version': '2022-11-28' };
-        try{
-          let r = await fetch(CONTENTS_URL, { cache: 'no-store', headers: { ...headers, Authorization: `token ${pat}` } });
-          if (r.status !== 401) return r.status;
-          r = await fetch(CONTENTS_URL, { cache: 'no-store', headers: { ...headers, Authorization: `Bearer ${pat}` } });
-          if (r.status !== 401) return r.status;
-          r = await fetch(CONTENTS_URL, { cache: 'no-store', headers: { ...headers, Authorization: 'Basic ' + btoa('x:' + pat) } });
-          return r.status;
-        }catch{
-          return 0; // network/CSP error
-        }
+    function unlockUI(pat){
+      sessionStorage.setItem(TOKEN_KEY, pat);
+      sessionStorage.setItem(SESSION_KEY, 'true');
+      if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(pat);
+      if (window.__authGuard?.unlock) __authGuard.unlock();
+      else {
+        document.documentElement.setAttribute('data-auth','unlocked');
+        const app=document.getElementById('app'), gate=document.getElementById('gate');
+        if (app) app.style.display=''; if (gate) gate.style.display='none';
       }
+      if (logout) logout.style.display='';
+      document.getElementById('openAddBtn')?.removeAttribute('disabled');
+    }
 
-      function unlockUI(pat){
-        sessionStorage.setItem(TOKEN_KEY, pat);
-        sessionStorage.setItem(SESSION_KEY, 'true');
-        if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(pat);
-        if (window.__authGuard?.unlock) { __authGuard.unlock(); }
-        else {
-          document.documentElement.setAttribute('data-auth','unlocked');
-          const app=document.getElementById('app'), gate=document.getElementById('gate');
-          if (app) app.style.display=''; if (gate) gate.style.display='none';
-        }
-        if (logout) logout.style.display = '';
-        // enable Add button immediately
-        document.getElementById('openAddBtn')?.removeAttribute('disabled');
+    function lockUI(){
+      sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(null);
+      if (window.__authGuard?.lock) __authGuard.lock();
+      else {
+        document.documentElement.setAttribute('data-auth','locked');
+        const app=document.getElementById('app'), gate=document.getElementById('gate');
+        if (app) app.style.display='none'; if (gate) gate.style.display='';
       }
+      if (logout) logout.style.display='none';
+    }
 
-      function lockUI(){
-        sessionStorage.removeItem(SESSION_KEY);
-        sessionStorage.removeItem(TOKEN_KEY);
-        if (window.XmlGitHubStorage?.setToken) XmlGitHubStorage.setToken(null);
-        if (window.__authGuard?.lock) { __authGuard.lock(); }
-        else {
-          document.documentElement.setAttribute('data-auth','locked');
-          const app=document.getElementById('app'), gate=document.getElementById('gate');
-          if (app) app.style.display='none'; if (gate) gate.style.display='';
-        }
-        if (logout) logout.style.display = 'none';
-      }
+    let credsVerified=false, busy=false;
 
-      let credsVerified = false, busy = false;
-
-      // Resume ONLY if token still verifies
-      (async function resume(){
-        const logged = sessionStorage.getItem(SESSION_KEY) === 'true';
-        const tok    = sessionStorage.getItem(TOKEN_KEY);
-        if (logged && tok){
-          const status = await verifyToken(tok);
-          if (status === 200 || status === 404){
-            unlockUI(tok);
-            try { await window.LegoSettings?.refresh?.(); } catch {}
-          } else {
-            lockUI();
-          }
-        } else {
+    (async function resume(){
+      const logged = sessionStorage.getItem(SESSION_KEY)==='true';
+      const tok = sessionStorage.getItem(TOKEN_KEY);
+      if (logged && tok){
+        const status = await verifyToken(tok);
+        if (status===200 || status===404){
+          unlockUI(tok);
+          try{ await window.LegoSettings?.refresh?.(); }catch{}
+        }else{
           lockUI();
         }
-      })();
+      }else{
+        lockUI();
+      }
+    })();
 
-      // Main click: Step 1 (user/pass) → Step 2 (verify PAT) → unlock on success
-      enterBtn?.addEventListener('click', async (e)=>{
+    enterBtn?.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      if (busy) return;
+      clearErr();
+
+      if (!credsVerified){
+        const u=(uEl.value||'').trim();
+        const p=(pEl.value||'').trim();
+        if (u!=='admin' || p!=='+mark'){ showErr('Invalid credentials. Please try again.'); return; }
+        credsVerified = true;
+        patRow.style.display = '';
+        enterBtn.textContent = 'Use Token';
+        patEl.focus();
+        return;
+      }
+
+      const pat = sanitizeToken(patEl.value);
+      if (!pat){ showErr('Please enter a valid GitHub token.'); patEl.focus(); return; }
+
+      const prev = enterBtn.textContent;
+      busy = true; enterBtn.disabled = true; enterBtn.textContent = 'Validating…';
+
+      const status = await verifyToken(pat);
+      if (status===200 || status===404){
+        unlockUI(pat);
+        try{ await window.LegoSettings?.refresh?.(); }catch{}
+      }else{
+        showErr(status===401 ? 'Token rejected (401).'
+              : status===403 ? 'Token lacks repo access (403).'
+              : status===0   ? 'Network/CSP error contacting GitHub.'
+                             : `Auth failed: ${status}`);
+        lockUI();
+      }
+      busy = false; enterBtn.disabled = false; enterBtn.textContent = prev || 'Use Token';
+    });
+
+    logout?.addEventListener('click', (e)=>{
+      e.preventDefault();
+      lockUI();
+      credsVerified=false;
+      patRow.style.display='none';
+      enterBtn.textContent='Enter';
+      uEl.value=''; pEl.value=''; patEl.value='';
+    });
+  })();
+  </script>
+
+  <!-- Add Record glue -->
+  <script>
+  (function(){
+    const $ = (id) => document.getElementById(id);
+    const appReady = () =>
+      document.documentElement.getAttribute('data-auth') === 'unlocked' &&
+      !!(window.XmlGitHubStorage?.hasToken && XmlGitHubStorage.hasToken());
+
+    const addBtn   = $('openAddBtn');
+    const overlay  = $('modalOverlay');
+    const closeBtn = $('closeModalBtn');
+    const form     = $('recordForm');
+    const idInput  = $('recordId');
+
+    function openModalForCreate(){
+      if (!overlay || !form) return;
+      form.reset();
+      if (idInput) idInput.value = '';
+      overlay.style.display = ''; // show
+      overlay.setAttribute('aria-hidden','false');
+    }
+    function closeModal(){
+      if (!overlay) return;
+      overlay.style.display = 'none';
+      overlay.setAttribute('aria-hidden','true');
+    }
+
+    addBtn?.addEventListener('click', (e)=>{
+      e.preventDefault();
+      if (!appReady()){ alert('Please login with a valid GitHub token first.'); return; }
+      openModalForCreate();
+    });
+    closeBtn?.addEventListener('click', (e)=>{ e.preventDefault(); closeModal(); });
+    overlay?.addEventListener('click', (e)=>{ if (e.target === overlay) closeModal(); });
+
+    if (form && !form.dataset.boundSave){
+      form.dataset.boundSave = 'true';
+      const val  = (id) => ($(id) ? $(id).value : '');
+      const text = (id) => ($(id) ? $(id).value.trim() : '');
+
+      form.addEventListener('submit', async (e)=>{
         e.preventDefault();
-        if (busy) return;
-        clearErr();
-
-        if (!credsVerified){
-          const u = (uEl.value || '').trim();
-          const p = (pEl.value || '').trim();
-          if (u !== 'admin' || p !== '+mark'){ showErr('Invalid credentials. Please try again.'); return; }
-          credsVerified = true;
-          patRow.style.display = '';
-          enterBtn.textContent = 'Use Token';
-          patEl.focus();
+        if (!window.XmlGitHubStorage?.upsertOne){
+          alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
+          return;
+        }
+        if (!XmlGitHubStorage.hasToken?.()){
+          alert('Write disabled: please login with a valid GitHub token first.');
           return;
         }
 
-        const pat = sanitizeToken(patEl.value);
-        if (!pat){ showErr('Please enter a valid GitHub token.'); patEl.focus(); return; }
+        const record = {
+          id: val('recordId') || ('r_' + Math.random().toString(36).slice(2) + Date.now().toString(36)),
+          category: val('category'),
+          phase: val('phase'),
+          activity: text('activity'),
+          outcome: text('outcome'),
+          presentationOwner: text('presentationOwner'),
+          contentOwner: text('contentOwner'),
+          notes: text('notes'),
+          links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
+            label: row.querySelector('.link-label')?.value || '',
+            url:   row.querySelector('.link-url')?.value   || ''
+          })),
+          tiers: {
+            tier_1:   val('tier_1'),
+            tier_1_1: val('tier_1_1'),
+            tier_1_2: val('tier_1_2'),
+            tier_2:   val('tier_2'),
+            tier_2_1: val('tier_2_1'),
+            tier_3:   val('tier_3'),
+            tier_3_1: val('tier_3_1'),
+            tier_3_2: val('tier_3_2')
+          }
+        };
 
-        const prev = enterBtn.textContent;
-        busy = true; enterBtn.disabled = true; enterBtn.textContent = 'Validating…';
-
-        const status = await verifyToken(pat);
-        if (status === 200 || status === 404){
-          unlockUI(pat);
-          try { await window.LegoSettings?.refresh?.(); } catch {}
-        } else {
-          showErr(
-            status === 401 ? 'Token rejected (401).'
-          : status === 403 ? 'Token lacks repo access (403).'
-          : status === 0   ? 'Network/CSP error contacting GitHub.'
-                           : `Auth failed: ${status}`
-          );
-          lockUI();
+        if (!record.category || !record.phase || !record.activity || !record.outcome){
+          alert('Please complete Category, Phase, Activity, and Outcome.');
+          return;
         }
 
-        busy = false; enterBtn.disabled = false; enterBtn.textContent = prev || 'Use Token';
+        const submitBtn = $('submitBtn');
+        const prevLabel = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+        try{
+          await XmlGitHubStorage.upsertOne(record);
+          if (idInput) idInput.value = record.id;
+          try{ await window.LegoSettings?.refresh?.(); }catch{}
+          closeModal();
+        }catch(err){
+          console.error(err);
+          alert('Save failed: ' + (err?.message || err));
+        }finally{
+          if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
+        }
       });
 
-      // Logout
-      logout?.addEventListener('click', (e)=>{
-        e.preventDefault();
-        lockUI();
-        // reset gate controls
-        credsVerified = false;
-        patRow.style.display = 'none';
-        enterBtn.textContent = 'Enter';
-        uEl.value=''; pEl.value=''; patEl.value='';
+      const delBtn = $('editDeleteBtn');
+      delBtn?.addEventListener('click', async ()=>{
+        if (!XmlGitHubStorage.hasToken?.()){
+          alert('Write disabled: please login with a valid GitHub token first.');
+          return;
+        }
+        const id = (idInput ? idInput.value : '');
+        if (!id){ alert('No record selected.'); return; }
+        if (!confirm('Delete this record?')) return;
+
+        try{
+          await XmlGitHubStorage.deleteOne(id);
+          try{ await window.LegoSettings?.refresh?.(); }catch{}
+          form.reset();
+          if (idInput) idInput.value = '';
+          closeModal();
+        }catch(err){
+          console.error(err);
+          alert('Delete failed: ' + (err?.message || err));
+        }
       });
-    })();
-  </script>
-
-  <!-- Add Record glue: open modal, save/delete via XmlGitHubStorage -->
-  <script>
-    (function () {
-      const $ = (id) => document.getElementById(id);
-      const appReady = () =>
-        document.documentElement.getAttribute('data-auth') === 'unlocked' &&
-        !!(window.XmlGitHubStorage?.hasToken && XmlGitHubStorage.hasToken());
-
-      const addBtn   = $('openAddBtn');
-      const overlay  = $('modalOverlay');
-      const closeBtn = $('closeModalBtn');
-      const form     = $('recordForm');
-      const idInput  = $('recordId');
-
-      function openModalForCreate() {
-        if (!overlay || !form) return;
-        form.reset();
-        if (idInput) idInput.value = '';
-        // show overlay (matches the original aria/CSS)
-        overlay.style.display = '';
-        overlay.setAttribute('aria-hidden', 'false');
-      }
-      function closeModal() {
-        if (!overlay) return;
-        overlay.style.display = 'none';
-        overlay.setAttribute('aria-hidden', 'true');
-      }
-
-      addBtn?.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (!appReady()) { alert('Please login with a valid GitHub token first.'); return; }
-        openModalForCreate();
-      });
-      closeBtn?.addEventListener('click', (e) => { e.preventDefault(); closeModal(); });
-      overlay?.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-
-      if (form && !form.dataset.boundSave) {
-        form.dataset.boundSave = 'true';
-        const val  = (id) => ($(id) ? $(id).value : '');
-        const text = (id) => ($(id) ? $(id).value.trim() : '');
-
-        form.addEventListener('submit', async (e) => {
-          e.preventDefault();
-          if (!window.XmlGitHubStorage?.upsertOne) {
-            alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-            return;
-          }
-          if (!XmlGitHubStorage.hasToken?.()) {
-            alert('Write disabled: please login with a valid GitHub token first.');
-            return;
-          }
-
-          const record = {
-            id: val('recordId') || ('r_' + Math.random().toString(36).slice(2) + Date.now().toString(36)),
-            category: val('category'),
-            phase: val('phase'),
-            activity: text('activity'),
-            outcome: text('outcome'),
-            presentationOwner: text('presentationOwner'),
-            contentOwner: text('contentOwner'),
-            notes: text('notes'),
-            links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
-              label: row.querySelector('.link-label')?.value || '',
-              url:   row.querySelector('.link-url')?.value   || ''
-            })),
-            tiers: {
-              tier_1:   val('tier_1'),
-              tier_1_1: val('tier_1_1'),
-              tier_1_2: val('tier_1_2'),
-              tier_2:   val('tier_2'),
-              tier_2_1: val('tier_2_1'),
-              tier_3:   val('tier_3'),
-              tier_3_1: val('tier_3_1'),
-              tier_3_2: val('tier_3_2')
-            }
-          };
-
-          if (!record.category || !record.phase || !record.activity || !record.outcome) {
-            alert('Please complete Category, Phase, Activity, and Outcome.');
-            return;
-          }
-
-          const submitBtn = $('submitBtn');
-          const prevLabel = submitBtn ? submitBtn.textContent : '';
-          if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
-
-          try {
-            await XmlGitHubStorage.upsertOne(record);
-            if (idInput) idInput.value = record.id;
-            try { await window.LegoSettings?.refresh?.(); } catch {}
-            closeModal();
-          } catch (err) {
-            console.error(err);
-            alert('Save failed: ' + (err?.message || err));
-          } finally {
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-          }
-        });
-
-        const delBtn = $('editDeleteBtn');
-        delBtn?.addEventListener('click', async () => {
-          if (!XmlGitHubStorage.hasToken?.()) {
-            alert('Write disabled: please login with a valid GitHub token first.');
-            return;
-          }
-          const id = (idInput ? idInput.value : '');
-          if (!id) { alert('No record selected.'); return; }
-          if (!confirm('Delete this record?')) return;
-
-          try {
-            await XmlGitHubStorage.deleteOne(id);
-            try { await window.LegoSettings?.refresh?.(); } catch {}
-            form.reset();
-            if (idInput) idInput.value = '';
-            closeModal();
-          } catch (err) {
-            console.error(err);
-            alert('Delete failed: ' + (err?.message || err));
-          }
-        });
-      }
-    })();
+    }
+  })();
   </script>
 
   <!-- CSS note for modal visibility:
        .modal-overlay[aria-hidden="true"] { display:none; }
-       .modal-overlay[aria-hidden="false"] { display:block; } /* or flex, to match your design */
+       .modal-overlay[aria-hidden="false"] { display:block; } /* or flex */
   -->
 </body>
 </html>
