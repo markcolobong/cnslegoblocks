@@ -8,14 +8,6 @@
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="stylesheet" href="assets/css/lego-settings.css" />
 
-  <!-- Modal centering/sizing to match Edit -->
-  <style>
-    /* Ensure both Add & Edit modals are centered and consistent */
-    .modal-overlay { position: fixed; inset: 0; display: none; z-index: 2000; }
-    .modal-overlay[aria-hidden="false"] { display: flex; align-items: center; justify-content: center; }
-    .modal-overlay .modal { max-width: 960px; width: min(960px, 92vw); max-height: 90vh; overflow: auto; }
-  </style>
-
   <!-- HARD GATE: keep app hidden until session + token -->
   <script>
     (function(){
@@ -283,131 +275,6 @@
   <script src="assets/js/storage-xml-github.js"></script>
   <script src="assets/js/lego-settings.js"></script>
 
-  <!-- Safety net: inline adapter only if external didn't load -->
-  <script>
-  (function(){
-    if (window.XmlGitHubStorage) return;
-
-    const OWNER  = 'markcolobong';
-    const REPO   = 'cnslegoblocks';
-    const BRANCH = 'main';
-    const FILE_PATH = 'data/records.xml';
-    const RAW_URL      = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}`;
-    const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`;
-
-    let GITHUB_TOKEN = null;
-    const sanitizeToken = t => (t||'').trim().replace(/^[\"']+|[\"']+$/g,'').replace(/\s+/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'');
-    function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
-    function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
-    function decodeBase64Utf8(b64){ try { return decodeURIComponent(escape(atob(b64))); } catch { return ''; } }
-    async function ghFetch(url, init={}){
-      const headers = Object.assign({ 'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28' }, init.headers||{});
-      const tok = sanitizeToken(GITHUB_TOKEN||'');
-      if (!tok) return fetch(url, Object.assign({}, init, { headers }));
-      let r = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization:`token ${tok}` }) }));
-      if (r.status!==401) return r;
-      r = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization:`Bearer ${tok}` }) }));
-      if (r.status!==401) return r;
-      return fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization:'Basic '+btoa('x:'+tok) }) }));
-    }
-    function parseXmlToRecords(xmlText){
-      const parser = new DOMParser(); const doc = parser.parseFromString(xmlText,'application/xml');
-      if (doc.querySelector('parsererror')) return []; const root = doc.querySelector('Records'); if (!root) return [];
-      const records=[]; root.querySelectorAll('Record').forEach(node=>{
-        const text = tag => (node.querySelector(tag)?.textContent ?? '');
-        const tier = name => { const el=node.querySelector(`Tiers > T[name="${cssEscape(name)}"]`); return el ? el.textContent : 'Applicable'; };
-        const id = node.getAttribute('id') || '';
-        const links=[]; node.querySelectorAll('Links > Link').forEach(L=>{ links.push({label:L.getAttribute('label')||'',url:L.getAttribute('url')||''}); });
-        records.push({
-          id, category:text('Category'), phase:text('Phase'), activity:text('Activity'), outcome:text('Outcome'),
-          presentationOwner:text('PresentationOwner'), contentOwner:text('ContentOwner'), notes:text('Notes'),
-          links, tiers:{ tier_1:tier('tier_1'), tier_1_1:tier('tier_1_1'), tier_1_2:tier('tier_1_2'),
-            tier_2:tier('tier_2'), tier_2_1:tier('tier_2_1'), tier_3:tier('tier_3'),
-            tier_3_1:tier('tier_3_1'), tier_3_2:tier('tier_3_2') }
-        });
-      }); return records;
-    }
-    function buildXml(records){
-      const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-      const escAttr=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&apos;");
-      const tier=(name,val)=>`    <T name="${escAttr(name)}">${esc(val)}</T>\n`; const link=l=>`    <Link label="${escAttr(l.label||'')}" url="${escAttr(l.url||'')}"/>\n`;
-      let out=`<?xml version="1.0" encoding="UTF-8"?>\n<Records version="1">\n`;
-      for (const r of records){
-        out += `  <Record id="${escAttr(r.id)}">\n`;
-        out += `    <Category>${esc(r.category)}</Category>\n`;
-        out += `    <Phase>${esc(r.phase)}</Phase>\n`;
-        out += `    <Activity>${esc(r.activity)}</Activity>\n`;
-        out += `    <Outcome>${esc(r.outcome)}</Outcome>\n`;
-        out += `    <PresentationOwner>${esc(r.presentationOwner)}</PresentationOwner>\n`;
-        out += `    <ContentOwner>${esc(r.contentOwner)}</ContentOwner>\n`;
-        out += `    <Notes>${esc(r.notes)}</Notes>\n`;
-        out += `    <Links>\n${(r.links||[]).map(link).join('')}    </Links>\n`;
-        out += `    <Tiers>\n`;
-        out += tier('tier_1',r.tiers?.tier_1); out += tier('tier_1_1',r.tiers?.tier_1_1); out += tier('tier_1_2',r.tiers?.tier_1_2);
-        out += tier('tier_2',r.tiers?.tier_2); out += tier('tier_2_1',r.tiers?.tier_2_1); out += tier('tier_3',r.tiers?.tier_3);
-        out += tier('tier_3_1',r.tiers?.tier_3_1); out += tier('tier_3_2',r.tiers?.tier_3_2);
-        out += `    </Tiers>\n  </Record>\n`;
-      } out+=`</Records>\n`; return out;
-    }
-    async function getCurrentSha(){
-      const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method:'GET', cache:'no-store' });
-      if (res.status===200){ const meta=await res.json(); return meta.sha||null; }
-      if (res.status===404) return null; const t=await res.text(); throw new Error('Failed reading file metadata: '+t);
-    }
-    function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-    async function saveAllToGitHub(records,message){
-      if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
-      const xml=buildXml(records); const content=base64EncodeUtf8(xml);
-      for (let attempt=1; attempt<=4; attempt++){
-        const sha = await getCurrentSha();
-        const res = await ghFetch(CONTENTS_URL, { method:'PUT', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ message: message || 'Update data/records.xml', content, sha: sha || undefined, branch: BRANCH }) });
-        if (res.ok) return;
-        let msg=''; try{ msg=(await res.json())?.message||''; } catch { try{ msg=await res.text(); } catch{} }
-        const conflict = res.status===409 || res.status===422 || /does not match|sha/i.test(msg);
-        if (conflict && attempt<4){ await sleep(250*attempt); continue; }
-        throw new Error(msg || ('GitHub save failed ('+res.status+')'));
-      }
-    }
-    const XmlGitHubStorage = {
-      setToken(t){ GITHUB_TOKEN = sanitizeToken(t); },
-      hasToken(){ return !!GITHUB_TOKEN; },
-      async load(){
-        try{
-          if (GITHUB_TOKEN){
-            const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method:'GET', cache:'no-store' });
-            if (res.status===404) return []; if (!res.ok) return [];
-            const json=await res.json(); const xmlText=decodeBase64Utf8((json.content||'').replace(/\n/g,''));
-            return parseXmlToRecords(xmlText);
-          }
-          const res = await fetch(RAW_URL, { cache:'no-store' }); if(!res.ok) return []; return parseXmlToRecords(await res.text());
-        }catch{ return []; }
-      },
-      async upsertOne(record){
-        const all = await this.load();
-        const idx = all.findIndex(r => r.id === record.id);
-        if (idx >= 0) all[idx] = record; else all.push(record);
-        await saveAllToGitHub(records, 'Upsert record from Lego Settings UI');
-      },
-      async updateOneById(record){
-        if (!record?.id) throw new Error('Missing record id');
-        const all = await this.load();
-        const idx = all.findIndex(r => r.id === record.id);
-        if (idx === -1) throw new Error('Record not found: ' + record.id);
-        all[idx] = record;
-        await saveAllToGitHub(records, 'Update record ' + record.id + ' from Lego Settings UI');
-      },
-      async replaceAll(records){ await saveAllToGitHub(records, 'Replace all records from Lego Settings UI'); },
-      async deleteOne(id){
-        const all = await this.load();
-        const next = all.filter(r => r.id !== id);
-        await saveAllToGitHub(next, 'Delete record from Lego Settings UI');
-      }
-    };
-    window.XmlGitHubStorage = XmlGitHubStorage;
-  })();
-  </script>
-
   <!-- Block any legacy PAT prompt -->
   <script>
     (function(){
@@ -447,15 +314,21 @@
     async function verifyToken(pat){
       const headers = { 'X-GitHub-Api-Version':'2022-11-28' };
       try{
-        let r = await fetch(CONTENTS_URL, { cache:'no-store', headers:{...headers, Authorization:`token ${pat}`} });
+        let r = await fetch(CONTENTS_URL + '&_ts=' + Date.now(), { cache:'no-store', headers:{...headers, Authorization:`token ${pat}`} });
         if (r.status !== 401) return r.status;
-        r = await fetch(CONTENTS_URL, { cache:'no-store', headers:{...headers, Authorization:`Bearer ${pat}`} });
+        r = await fetch(CONTENTS_URL + '&_ts=' + Date.now(), { cache:'no-store', headers:{...headers, Authorization:`Bearer ${pat}`} });
         if (r.status !== 401) return r.status;
-        r = await fetch(CONTENTS_URL, { cache:'no-store', headers:{...headers, Authorization:'Basic '+btoa('x:'+pat)} });
+        r = await fetch(CONTENTS_URL + '&_ts=' + Date.now(), { cache:'no-store', headers:{...headers, Authorization:'Basic '+btoa('x:'+pat)} });
         return r.status;
       }catch{
         return 0;
       }
+    }
+
+    async function forceFreshRender(){
+      try{ await XmlGitHubStorage.load(); }catch{}
+      try{ await window.LegoSettings?.refresh?.(); }catch{}
+      setTimeout(async ()=>{ try{ await window.LegoSettings?.refresh?.(); }catch{} }, 200);
     }
 
     function unlockUI(pat){
@@ -469,7 +342,8 @@
         if (app) app.style.display=''; if (gate) gate.style.display='none';
       }
       if (logout) logout.style.display='';
-      document.getElementById('openAddBtn')?.removeAttribute('disabled');
+      // First render after successful login always cache-busted
+      forceFreshRender();
     }
 
     function lockUI(){
@@ -494,7 +368,6 @@
         const status = await verifyToken(tok);
         if (status===200 || status===404){
           unlockUI(tok);
-          try{ await window.LegoSettings?.refresh?.(); }catch{}
         }else{
           lockUI();
         }
@@ -528,7 +401,6 @@
       const status = await verifyToken(pat);
       if (status===200 || status===404){
         unlockUI(pat);
-        try{ await window.LegoSettings?.refresh?.(); }catch{}
       }else{
         showErr(status===401 ? 'Token rejected (401).'
               : status===403 ? 'Token lacks repo access (403).'
@@ -547,329 +419,192 @@
       enterBtn.textContent='Enter';
       uEl.value=''; pEl.value=''; patEl.value='';
     });
+
+    // Expose a global re-render helper for other blocks below
+    window.forceFreshLegoRender = forceFreshRender;
   })();
   </script>
 
-<!-- Ensure new records persist across hard refreshes: sticky-save + replay -->
-<script>
-(function(){
-  const $  = (id)=>document.getElementById(id);
-  const q  = (sel, el=document)=>el.querySelector(sel);
-  const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
-  const S  = (v)=>String(v ?? '');
+  <!-- ADD: Append row only AFTER modal closes (post-save) + force fresh load from XML -->
+  <script>
+  (function(){
+    const $  = (id)=>document.getElementById(id);
+    const q  = (sel, el=document)=>el.querySelector(sel);
+    const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
+    const S  = (v)=>String(v ?? '');
 
-  const overlay  = $('modalOverlay');
-  const form     = $('recordForm');
-  const idInput  = $('recordId');
-  const modalTit = $('modalTitle');
-  const linksBox = $('linksContainer');
-  const countPill= $('countPill');
-  const addBtn   = $('openAddBtn');
-
-  if (!overlay || !form) return;
-
-  // ---------- sticky manager (session-scoped) ----------
-  const STICKY_KEY = 'lego_recent_adds';
-  const MAX_AGE_MS = 5 * 60 * 1000; // keep for 5 minutes
-  const MAX_KEEP   = 50;
-
-  function getSticky(){
-    try{ return JSON.parse(sessionStorage.getItem(STICKY_KEY) || '[]'); }catch{ return []; }
-  }
-  function setSticky(list){
-    try{ sessionStorage.setItem(STICKY_KEY, JSON.stringify(list.slice(-MAX_KEEP))); }catch{}
-  }
-  function pruneSticky(){
-    const now = Date.now();
-    setSticky(getSticky().filter(x => now - (x.__ts || 0) < MAX_AGE_MS));
-  }
-  function stickyPush(rec){
-    const list = getSticky();
-    list.push({ ...rec, __ts: Date.now() });
-    setSticky(list);
-  }
-  function presentInDom(id){
-    return !!q(`#dataTable tbody tr[data-id="${CSS.escape(id)}"]`);
-  }
-  function parseCount(){
-    const m = (countPill?.textContent || '').match(/(\d+)/);
-    return m ? parseInt(m[1], 10) : NaN;
-  }
-  function setCount(n){
-    if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`;
-  }
-
-  // ---------- exact-match UI append (clone first row to preserve look) ----------
-  function appendRowImmediate(rec){
-    const tb  = q('#dataTable tbody');
-    if (!tb) return;
-
-    const tpl = tb.querySelector('tr');
-    let tr;
-
-    if (tpl){
-      tr = tpl.cloneNode(true);
-      tr.dataset.id = rec.id;
-
-      const cells = tr.querySelectorAll('td');
-
-      const setText = (idx, val) => {
-        if (!cells[idx]) return;
-        cells[idx].innerHTML = '';
-        cells[idx].textContent = S(val);
-      };
-      const setTier = (idx, val) => {
-        if (!cells[idx]) return;
-        const cell = cells[idx];
-        let pill = cell.querySelector('.pill, .badge, .chip, span');
-        if (!pill){
-          cell.innerHTML = '';
-          cell.textContent = S(val);
-          return;
-        }
-        pill.textContent = S(val);
-        pill.setAttribute('data-value', S(val));
-      };
-
-      // 0..3 text
-      setText(0, rec.category);
-      setText(1, rec.phase);
-      setText(2, rec.activity);
-      setText(3, rec.outcome);
-      // 4..11 tiers
-      setTier(4,  rec.tiers?.tier_1);
-      setTier(5,  rec.tiers?.tier_1_1);
-      setTier(6,  rec.tiers?.tier_1_2);
-      setTier(7,  rec.tiers?.tier_2);
-      setTier(8,  rec.tiers?.tier_2_1);
-      setTier(9,  rec.tiers?.tier_3);
-      setTier(10, rec.tiers?.tier_3_1);
-      setTier(11, rec.tiers?.tier_3_2);
-
-      // actions: re-point ids
-      const view = tr.querySelector('.view-link');
-      const del  = tr.querySelector('.delete-link');
-      if (view) view.setAttribute('data-id', rec.id);
-      if (del)  del.setAttribute('data-id', rec.id);
-    }else{
-      // empty table fallback (rare)
-      tr = document.createElement('tr');
-      tr.dataset.id = rec.id;
-      const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
-      const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
-      tr.appendChild(td(rec.category,'cat'));
-      tr.appendChild(td(rec.phase,'phase'));
-      tr.appendChild(td(rec.activity,'activity'));
-      tr.appendChild(td(rec.outcome,'outcome'));
-      const tds=document.createDocumentFragment();
-      [['tier_1'],['tier_1_1'],['tier_1_2'],['tier_2'],['tier_2_1'],['tier_3'],['tier_3_1'],['tier_3_2']].forEach(([k])=>{
-        const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); tds.appendChild(cell);
-      });
-      tr.appendChild(tds);
-      const actions=document.createElement('td');
-      actions.className='actions';
-      actions.innerHTML = `
-        <a href="#" class="tiny view-link" data-id="${rec.id}">View</a>
-        <span class="sep">•</span>
-        <a href="#" class="tiny danger delete-link" data-id="${rec.id}">Delete</a>
-      `;
-      tr.appendChild(actions);
-    }
-
-    tb.appendChild(tr);
-  }
-
-  // ---------- replay sticky rows on startup, then background refresh clears them ----------
-  async function startupEnsure(){
-    pruneSticky();
-    const sticky = getSticky();
-    if (sticky.length){
-      let appended = 0;
-      for (const rec of sticky){
-        if (!presentInDom(rec.id)){ appendRowImmediate(rec); appended++; }
-      }
-      if (appended){
-        const c = parseCount(); if (!isNaN(c)) setCount(c + appended);
-      }
-      // background refresh cascade; then drop any sticky that are now rendered by canonical refresh
-      const backoff = [150, 350, 700];
-      for (let i=0;i<backoff.length;i++){
-        try{ await window.LegoSettings?.refresh?.(); }catch{}
-        await new Promise(r=>setTimeout(r, backoff[i]));
-      }
-      const remaining = getSticky().filter(rec => !presentInDom(rec.id)); // keep only those still missing
-      setSticky(remaining);
-    }
-  }
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', startupEnsure);
-  }else{
-    startupEnsure();
-  }
-
-  // ---------- capture add submit to snapshot record & ensure id ----------
-  let pendingAdd = null;
-
-  form.addEventListener('submit', (e)=>{
-    const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-    if (!isCreate) return;
-
-    // Pre-build the record so UI append (and sticky) uses the same ID your saver will store
-    const nextId = (()=> {
-      // derive next id from DOM to keep ordering nice
-      const rows = qa('#dataTable tbody tr[data-id]');
-      const last = rows.length ? rows[rows.length-1].dataset.id || '' : '';
-      const m = last.match(/^(.*?)(\d+)$/);
-      if (m){ const p=m[1], d=m[2]; return p + String(parseInt(d,10)+1).padStart(d.length,'0'); }
-      return 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-    })();
-
-    const rec = {
-      id: nextId,
-      category: q('#category')?.value || '',
-      phase: q('#phase')?.value || '',
-      activity: q('#activity')?.value?.trim() || '',
-      outcome: q('#outcome')?.value?.trim() || '',
-      presentationOwner: q('#presentationOwner')?.value?.trim() || '',
-      contentOwner: q('#contentOwner')?.value?.trim() || '',
-      notes: q('#notes')?.value?.trim() || '',
-      links: qa('#linksContainer .link-row').map(row => ({
-        label: row.querySelector('.link-label')?.value || '',
-        url:   row.querySelector('.link-url')?.value   || ''
-      })),
-      tiers: {
-        tier_1:   q('#tier_1')?.value || '',
-        tier_1_1: q('#tier_1_1')?.value || '',
-        tier_1_2: q('#tier_1_2')?.value || '',
-        tier_2:   q('#tier_2')?.value || '',
-        tier_2_1: q('#tier_2_1')?.value || '',
-        tier_3:   q('#tier_3')?.value || '',
-        tier_3_1: q('#tier_3_1')?.value || '',
-        tier_3_2: q('#tier_3_2')?.value || ''
-      }
-    };
-
-    // make sure your existing saver uses THIS id
-    if (idInput) idInput.value = rec.id;
-
-    // hold until modal actually closes (meaning your save completed)
-    pendingAdd = rec;
-  }, true); // capture = true so we run before any re-render
-
-  // ---------- when modal closes after save, append row & sticky-save ----------
-  const mo = new MutationObserver(async (mlist)=>{
-    for (const m of mlist){
-      if (m.type==='attributes' && m.attributeName==='aria-hidden'){
-        const nowHidden = overlay.getAttribute('aria-hidden') === 'true';
-        if (nowHidden && pendingAdd){
-          const rec = pendingAdd; pendingAdd = null;
-
-          // Instant UI add + bump count
-          appendRowImmediate(rec);
-          const c = parseCount(); if (!isNaN(c)) setCount(c+1);
-
-          // Sticky-save so a hard refresh still shows it
-          stickyPush(rec);
-
-          // Gentle background reconcile so canonical renderer wires actions etc.
-          try{ await window.LegoSettings?.refresh?.(); }catch{}
-          setTimeout(()=>{ try{ window.LegoSettings?.refresh?.(); }catch{} }, 200);
-        }
-      }
-    }
-  });
-  mo.observe(overlay, { attributes:true, attributeFilter:['aria-hidden'] });
-
-  // safety: always open add mode on click
-  addBtn && addBtn.addEventListener('click', ()=>{
-    if (modalTit) modalTit.textContent = 'Add Record';
-    if (idInput) idInput.value = '';
-    $('editDeleteBtn')?.style && ( $('editDeleteBtn').style.display = 'none' );
-    form.dataset.mode = 'create';
-  });
-})();
-</script>
-
-
-
-  <!-- CSS tip (your theme likely already has this):
-       .modal-overlay[aria-hidden="true"] { display:none; }
-       .modal-overlay[aria-hidden="false"] { display:flex; align-items:center; justify-content:center; }
-  -->
-  <!-- Hard-fix: ensure "+ Add record" always opens the Add modal -->
-<script>
-(function(){
-  function openAddModal(){
-    var overlay    = document.getElementById('modalOverlay');
-    var form       = document.getElementById('recordForm');
-    var idInput    = document.getElementById('recordId');
-    var delBtn     = document.getElementById('editDeleteBtn');
-    var modalTitle = document.getElementById('modalTitle');
+    const overlay  = $('modalOverlay');
+    const form     = $('recordForm');
+    const idInput  = $('recordId');
+    const modalTit = $('modalTitle');
+    const countPill= $('countPill');
+    const addBtn   = $('openAddBtn');
 
     if (!overlay || !form) return;
 
-    // Reset to pristine Add state
-    try { form.reset(); } catch {}
-    if (idInput) idInput.value = '';
-    form.dataset.mode = 'create';
-    if (modalTitle) modalTitle.textContent = 'Add Record';
-    if (delBtn) delBtn.style.display = 'none';
+    function parseCount(){ const m=(countPill?.textContent||'').match(/(\d+)/); return m?parseInt(m[1],10):NaN; }
+    function setCount(n){ if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`; }
 
-    // Show (CSS handles centering/sizing)
-    overlay.setAttribute('aria-hidden','false');
+    // Clone first row as template so the instant row matches exact structure/styles
+    function appendRowImmediate(rec){
+      const tb  = q('#dataTable tbody');
+      if (!tb) return;
 
-    // Focus first useful field
-    var first = form.querySelector('input,select,textarea');
-    if (first) first.focus();
-  }
+      const tpl = tb.querySelector('tr');
+      let tr;
 
-  function bind(){
-    var btn = document.getElementById('openAddBtn');
-    if (!btn) return;
+      if (tpl){
+        tr = tpl.cloneNode(true);
+        tr.dataset.id = rec.id;
 
-    // avoid form submit semantics
-    btn.setAttribute('type','button');
-    btn.removeAttribute('disabled');
+        const cells = tr.querySelectorAll('td');
 
-    // Capture-phase handler so nothing else can block it
-    function captureOpen(e){
-      var t = e.target && e.target.closest ? e.target.closest('#openAddBtn') : null;
-      if (!t) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      openAddModal();
+        const setText = (idx, val) => {
+          if (!cells[idx]) return;
+          cells[idx].innerHTML = '';
+          cells[idx].textContent = S(val);
+        };
+        const setTier = (idx, val) => {
+          if (!cells[idx]) return;
+          const cell = cells[idx];
+          let pill = cell.querySelector('.pill, .badge, .chip, span');
+          if (!pill){
+            cell.innerHTML = '';
+            cell.textContent = S(val);
+            return;
+          }
+          pill.textContent = S(val);
+          pill.setAttribute('data-value', S(val));
+        };
+
+        // 0..3 text
+        setText(0, rec.category);
+        setText(1, rec.phase);
+        setText(2, rec.activity);
+        setText(3, rec.outcome);
+        // 4..11 tiers
+        setTier(4,  rec.tiers?.tier_1);
+        setTier(5,  rec.tiers?.tier_1_1);
+        setTier(6,  rec.tiers?.tier_1_2);
+        setTier(7,  rec.tiers?.tier_2);
+        setTier(8,  rec.tiers?.tier_2_1);
+        setTier(9,  rec.tiers?.tier_3);
+        setTier(10, rec.tiers?.tier_3_1);
+        setTier(11, rec.tiers?.tier_3_2);
+
+        // actions: ensure data-id targets new record
+        const view = tr.querySelector('.view-link');
+        const del  = tr.querySelector('.delete-link');
+        if (view) view.setAttribute('data-id', rec.id);
+        if (del)  del.setAttribute('data-id', rec.id);
+      } else {
+        // Fallback when table is initially empty (rare)
+        tr = document.createElement('tr');
+        tr.dataset.id = rec.id;
+        const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
+        const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
+        tr.appendChild(td(rec.category,'cat'));
+        tr.appendChild(td(rec.phase,'phase'));
+        tr.appendChild(td(rec.activity,'activity'));
+        tr.appendChild(td(rec.outcome,'outcome'));
+        const fr=document.createDocumentFragment();
+        [['tier_1'],['tier_1_1'],['tier_1_2'],['tier_2'],['tier_2_1'],['tier_3'],['tier_3_1'],['tier_3_2']].forEach(([k])=>{
+          const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); fr.appendChild(cell);
+        });
+        tr.appendChild(fr);
+        const actions=document.createElement('td');
+        actions.className='actions';
+        actions.innerHTML = `
+          <a href="#" class="tiny view-link" data-id="${rec.id}">View</a>
+          <span class="sep">•</span>
+          <a href="#" class="tiny danger delete-link" data-id="${rec.id}">Delete</a>
+        `;
+        tr.appendChild(actions);
+      }
+
+      tb.appendChild(tr);
     }
 
-    // Earliest hooks
-    document.addEventListener('pointerdown', captureOpen, true);
-    document.addEventListener('click',       captureOpen, true);
+    // Always open in Add mode
+    addBtn && addBtn.addEventListener('click', ()=>{
+      if (modalTit) modalTit.textContent = 'Add Record';
+      if (idInput) idInput.value = '';
+      const del = document.getElementById('editDeleteBtn');
+      if (del && del.style) del.style.display = 'none';
+      form.dataset.mode = 'create';
+      // Let CSS control centering; we only toggle aria
+      document.getElementById('modalOverlay')?.setAttribute('aria-hidden','false');
+    });
 
-    // Direct fallback on the button
-    btn.onclick = function(e){
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      openAddModal();
-    };
-  }
+    // Capture Add submit to snapshot data & ensure the ID we want
+    let pendingAdd = null;
+    form.addEventListener('submit', (e)=>{
+      const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
+      if (!isCreate) return;
 
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', bind);
-  } else {
-    bind();
-  }
-})();
-</script>
+      // Derive next id from DOM to keep order nice; fallback unique id
+      const rows = qa('#dataTable tbody tr[data-id]');
+      const last = rows.length ? rows[rows.length-1].dataset.id || '' : '';
+      let nextId;
+      const m = last.match(/^(.*?)(\d+)$/);
+      if (m){ const p=m[1], d=m[2]; nextId = p + String(parseInt(d,10)+1).padStart(d.length,'0'); }
+      else nextId = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
+      const rec = {
+        id: nextId,
+        category: document.getElementById('category')?.value || '',
+        phase: document.getElementById('phase')?.value || '',
+        activity: document.getElementById('activity')?.value?.trim() || '',
+        outcome: document.getElementById('outcome')?.value?.trim() || '',
+        presentationOwner: document.getElementById('presentationOwner')?.value?.trim() || '',
+        contentOwner: document.getElementById('contentOwner')?.value?.trim() || '',
+        notes: document.getElementById('notes')?.value?.trim() || '',
+        links: Array.from(document.querySelectorAll('#linksContainer .link-row')).map(row => ({
+          label: row.querySelector('.link-label')?.value || '',
+          url:   row.querySelector('.link-url')?.value   || ''
+        })),
+        tiers: {
+          tier_1:   document.getElementById('tier_1')?.value || '',
+          tier_1_1: document.getElementById('tier_1_1')?.value || '',
+          tier_1_2: document.getElementById('tier_1_2')?.value || '',
+          tier_2:   document.getElementById('tier_2')?.value || '',
+          tier_2_1: document.getElementById('tier_2_1')?.value || '',
+          tier_3:   document.getElementById('tier_3')?.value || '',
+          tier_3_1: document.getElementById('tier_3_1')?.value || '',
+          tier_3_2: document.getElementById('tier_3_2')?.value || ''
+        }
+      };
+
+      // Ensure your saver uses THIS id
+      if (idInput) idInput.value = rec.id;
+      pendingAdd = rec;
+      // Do not preventDefault; your existing handler saves and closes modal
+    }, true);
+
+    // After the modal actually closes (save finished), append row then force fresh load from XML
+    const mo = new MutationObserver(async (mlist)=>{
+      for (const m of mlist){
+        if (m.type==='attributes' && m.attributeName==='aria-hidden'){
+          const nowHidden = overlay.getAttribute('aria-hidden') === 'true';
+          if (nowHidden && pendingAdd){
+            const rec = pendingAdd; pendingAdd = null;
+
+            // Instant visible row + count
+            appendRowImmediate(rec);
+            const c=parseCount(); if (!isNaN(c)) setCount(c+1);
+
+            // Fresh, cache-busted load → canonical re-render (keeps immediately added row consistent)
+            if (window.forceFreshLegoRender) { try{ await window.forceFreshLegoRender(); }catch{} }
+          }
+        }
+      }
+    });
+    mo.observe(overlay, { attributes:true, attributeFilter:['aria-hidden'] });
+  })();
+  </script>
+
+  <!-- CSS tip:
+       .modal-overlay[aria-hidden="true"]  { display:none; }
+       .modal-overlay[aria-hidden="false"] { display:block; }  -->
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
