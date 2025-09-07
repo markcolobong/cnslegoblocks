@@ -550,7 +550,7 @@
   })();
   </script>
 
-<!-- ADD RECORD: Save -> write to XML -> instant local append (no 'Saving…') -> background refresh -->
+<!-- ADD RECORD: delete-like UX (instant row, no 'Saving…', rollback on failure) -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
@@ -578,11 +578,19 @@
     const m = (countPill?.textContent || '').match(/(\d+)/);
     return m ? parseInt(m[1], 10) : NaN;
   }
+  function setCountPill(n){
+    if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`;
+  }
 
-  function nextUniqueId(all){
-    const ids = new Set(all.map(r => r.id || ''));
-    const lastId = all.length ? (all[all.length-1].id || '') : '';
+  function lastRenderedId(){
+    const rows = document.querySelectorAll('#dataTable tbody tr[data-id]');
+    if (!rows.length) return '';
+    return rows[rows.length - 1].dataset.id || '';
+  }
+  function nextIdFromDom(){
+    // Prefer DOM (no network). Falls back to random unique.
     let candidate;
+    const lastId = lastRenderedId();
     const m = lastId.match(/^(.*?)(\d+)$/);
     if (m) {
       const prefix = m[1], digits = m[2];
@@ -590,8 +598,9 @@
     } else {
       candidate = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     }
+    // Ensure not dup in DOM
     let guard = 0;
-    while (ids.has(candidate) && guard < 1000) {
+    while (document.querySelector(`#dataTable tbody tr[data-id="${CSS.escape(candidate)}"]`) && guard < 1000) {
       const mm = candidate.match(/^(.*?)(\d+)$/);
       if (mm) {
         const p = mm[1], d = mm[2];
@@ -604,13 +613,12 @@
     return candidate;
   }
 
-  // Create a normal-looking row (no “Saving…” badge)
   function appendRowLocal(rec){
     const tb = document.querySelector('#dataTable tbody');
-    if (!tb) return;
+    if (!tb) return null;
 
     const tr = document.createElement('tr');
-    tr.dataset.local = 'true';           // marker until refresh replaces it
+    tr.dataset.local = 'true';
     tr.dataset.id = rec.id || '';
 
     function td(txt, cls){
@@ -632,23 +640,17 @@
     tr.appendChild(td(rec.tiers?.tier_3   ?? '', 'tier-col'));
     tr.appendChild(td(rec.tiers?.tier_3_1 ?? '', 'tier-col'));
     tr.appendChild(td(rec.tiers?.tier_3_2 ?? '', 'tier-col'));
-
-    // Actions cell (left blank — your normal refresh will render the real actions)
-    tr.appendChild(td('', 'actions'));
+    tr.appendChild(td('', 'actions')); // real actions will appear after refresh
 
     tb.appendChild(tr);
+    return tr;
   }
 
-  async function backgroundReconcile(expectedCount){
-    // Refresh a few times with backoff to swap in the proper row/actions as soon as GitHub serves the update
-    const delays = [120, 260, 520, 1000, 1600];
-    for (let i = 0; i < delays.length; i++){
-      try { await window.LegoSettings?.refresh?.(); } catch {}
-      await sleep(delays[i]);
-      const cur = parseCountPill();
-      if (!isNaN(expectedCount) && cur === expectedCount) return true;
-    }
-    return false;
+  async function backgroundReconcile(){
+    // Match Delete feel: a quick refresh or two, no heavy polling
+    try { await window.LegoSettings?.refresh?.(); } catch {}
+    await sleep(200);
+    try { await window.LegoSettings?.refresh?.(); } catch {}
   }
 
   // ---------- modal open/close ----------
@@ -661,19 +663,18 @@
     if (delBtn) delBtn.style.display = 'none';
     if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
     overlay.style.pointerEvents = 'auto';
-    overlay.setAttribute('aria-hidden','false'); // CSS centers it
+    overlay.setAttribute('aria-hidden','false');
     const first = form.querySelector('input,select,textarea');
     first && first.focus();
   }
   function closeModal(){
     overlay.setAttribute('aria-hidden','true');
-    // ensure overlay can't trap clicks when hidden
-    overlay.style.pointerEvents = 'none';
-    setTimeout(()=>{ overlay.style.pointerEvents=''; }, 200);
+    overlay.style.pointerEvents = 'none'; // prevent “stuck overlay” from blocking clicks
+    setTimeout(()=>{ overlay.style.pointerEvents = ''; }, 200);
     delete form.dataset.mode;
   }
 
-  // ---------- bind "+ Add record" (bullet-proof) ----------
+  // ---------- bind "+ Add record" robustly ----------
   function bindAddButton(){
     addBtn.setAttribute('type','button');
     addBtn.removeAttribute('disabled');
@@ -704,18 +705,18 @@
     if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
   });
 
-  // ---------- ADD-ONLY Save: write to XML, then instant local append, then reconcile ----------
+  // ---------- ADD-ONLY Save: instant row (like delete), then persist; rollback on failure ----------
   if (!form.dataset.addOnlyBound){
     form.dataset.addOnlyBound = 'true';
 
     form.addEventListener('submit', async function onSubmitAdd(e){
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-      if (!isCreate) return; // your EDIT path handles edits
+      if (!isCreate) return; // edit path is elsewhere
 
       e.preventDefault();
       e.stopImmediatePropagation();
 
-      if (!window.XmlGitHubStorage?.upsertOne || !window.XmlGitHubStorage?.load){
+      if (!window.XmlGitHubStorage?.upsertOne){
         alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
         return;
       }
@@ -724,11 +725,9 @@
         return;
       }
 
-      const beforeCount = parseCountPill();
-
-      // Build from user inputs
+      // Build the record
       const record = {
-        id: '',
+        id: nextIdFromDom(),
         category: val('category'),
         phase: val('phase'),
         activity: text('activity'),
@@ -761,41 +760,38 @@
       const prevLabel = submitBtn ? submitBtn.textContent : '';
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
+      // 🔹 Instant UI change (like Delete): append row + bump count now
+      const beforeCount = parseCountPill();
+      const tempRow = appendRowLocal(record);
+      if (!isNaN(beforeCount)) setCountPill(beforeCount + 1);
+
       try{
-        // Generate id (append pattern) and write to XML first
-        const all = await XmlGitHubStorage.load();
-        record.id = nextUniqueId(all);
+        // Persist to XML; if this throws, we rollback below
         await XmlGitHubStorage.upsertOne(record);
 
-        // Close modal immediately (UX)
+        // Success: close modal, then background reconcile (quick, like delete)
         closeModal();
+        backgroundReconcile();
 
-        // Instantly show in UI (no status text)
-        appendRowLocal(record);
-
-        // Update pill immediately
-        const expected = isNaN(beforeCount) ? NaN : (beforeCount + 1);
-        if (!isNaN(expected) && countPill) countPill.textContent = `${expected} records`;
-
-        // Background reconcile to swap in the fully-rendered row (actions etc.)
-        await backgroundReconcile(expected);
-
-        // Make sure the next click is Add mode again, and button stays responsive
+      }catch(err){
+        // ❌ Rollback the optimistic UI (remove row, restore count)
+        if (tempRow && tempRow.parentNode) tempRow.parentNode.removeChild(tempRow);
+        if (!isNaN(beforeCount)) setCountPill(beforeCount);
+        console.error(err);
+        alert('Save failed: ' + (err?.message || err));
+      }finally{
+        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
+        // Ensure the next click opens Add mode again and button stays responsive
         if (idInput) idInput.value = '';
         if (delBtn)  delBtn.style.display = 'none';
         if (modalTitle) modalTitle.textContent = 'Add Record';
         bindAddButton();
-
-        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
-      }catch(err){
-        console.error(err);
-        alert('Save failed: ' + (err?.message || err));
-        if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }
     }, true);
   }
 })();
 </script>
+
 
   <!-- CSS tip (your theme likely already has this):
        .modal-overlay[aria-hidden="true"] { display:none; }
@@ -867,6 +863,7 @@
 
 </body>
 </html>
+
 
 
 
