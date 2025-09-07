@@ -96,7 +96,7 @@
             <a href="#" id="exportLink">Export</a>
             <a href="#" id="importLink">Import</a>
             <a href="#" id="clearAllLink">Clear All</a>
-            <span class="count" id="countPill">0 records</span>
+            <span class="count" id="countPill" role="status" aria-live="polite">0 records</span>
             <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none" />
           </div>
         </div>
@@ -404,8 +404,13 @@
         return;
       }
 
-      const pat = sanitizeToken(patEl.value);
-      if (!pat){ showErr('Please enter a valid GitHub token.'); patEl.focus(); return; }
+      const patRaw = patEl.value;
+      const pat = sanitizeToken(patRaw);
+      if (!pat || pat.length < 20){
+        showErr('Please paste a valid GitHub token (looks like “ghp_…”, typically 40+ chars).');
+        patEl.focus();
+        return;
+      }
 
       const prev = enterBtn.textContent;
       busy = true; enterBtn.disabled = true; enterBtn.textContent = 'Validating…';
@@ -454,17 +459,32 @@
 
     if (!overlay || !form) return;
 
+    // Busy latch to prevent double-submit in Add mode
+    let addBusy = false;
+
     function parseCount(){ const m=(countPill?.textContent||'').match(/(\d+)/); return m?parseInt(m[1],10):NaN; }
-    function setCount(n){ if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`; }
+    function setCount(n){ if (countPill && Number.isFinite(n)) countPill.textContent = `${n} record${n===1?'':'s'}`; }
+
+    function nextIdFromTable(){
+      const rows = Array.from(document.querySelectorAll('#dataTable tbody tr[data-id]'));
+      let base = 'r_', maxNum = 0, width = 4;
+      for (const r of rows){
+        const id = r.dataset.id || '';
+        const m = id.match(/^(.*?)(\d+)$/);
+        if (m){ if (m[1]) base = m[1]; maxNum = Math.max(maxNum, parseInt(m[2],10)); width = m[2].length; }
+      }
+      return base + String(maxNum+1).padStart(width, '0');
+    }
 
     function appendRowImmediate(rec){
       const tb = q('#dataTable tbody');
       if (!tb) return;
 
       const tpl = tb.querySelector('tr');
+      const isPlaceholder = tpl && tpl.classList.contains('empty-row');
       let tr;
 
-      if (tpl){
+      if (tpl && !isPlaceholder){
         tr = tpl.cloneNode(true);
         tr.dataset.id = rec.id;
         const cells = tr.querySelectorAll('td');
@@ -539,12 +559,13 @@
       tb.appendChild(tr);
     }
 
-    // Always open in Add mode
+    // Always open in Add mode + reset fields
     addBtn && addBtn.addEventListener('click', ()=>{
       if (modalTit) modalTit.textContent = 'Add Record';
       if (idInput) idInput.value = '';
       const del = document.getElementById('editDeleteBtn');
       if (del && del.style) del.style.display = 'none';
+      form.reset();
       form.dataset.mode = 'create';
       document.getElementById('modalOverlay')?.setAttribute('aria-hidden','false');
     });
@@ -556,12 +577,10 @@
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
       if (!isCreate) return;
 
-      const rows = qa('#dataTable tbody tr[data-id]');
-      const last = rows.length ? rows[rows.length-1].dataset.id || '' : '';
-      let nextId;
-      const m = last.match(/^(.*?)(\d+)$/);
-      if (m){ const p=m[1], d=m[2]; nextId = p + String(parseInt(d,10)+1).padStart(d.length,'0'); }
-      else nextId = 'r_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      if (addBusy) { e.preventDefault(); e.stopPropagation(); return; }
+      addBusy = true; setTimeout(()=>{ addBusy = false; }, 2000);
+
+      let nextId = nextIdFromTable();
 
       const rec = {
         id: nextId,
@@ -642,9 +661,10 @@
   })();
   </script>
 
-  <!-- Delegate "View" so freshly added rows work immediately -->
+  <!-- Delegate View and Delete so freshly added rows work immediately; manage modal focus for a11y -->
   <script>
   (function(){
+    // Delegated View
     document.addEventListener('click', function(e){
       const el = e.target.closest('[data-action="view"], .view-link, .view-details, .btn-view');
       if (!el) return;
@@ -657,8 +677,32 @@
 
       try { window.dispatchEvent(new CustomEvent('lego:openDetails', { detail: { id } })); } catch {}
     }, true);
+
+    // Delegated Delete
+    document.addEventListener('click', function(e){
+      const del = e.target.closest('[data-action="delete"], .delete-link, .btn-delete');
+      if (!del) return;
+      e.preventDefault();
+      const id = del.getAttribute('data-id') || del.closest('tr')?.dataset.id;
+      if (!id) return;
+      try { window.dispatchEvent(new CustomEvent('lego:deleteRecord', { detail: { id } })); } catch {}
+    }, true);
+
+    // Modal focus (open → first field, close → return focus)
+    const overlay = document.getElementById('modalOverlay');
+    const addBtn  = document.getElementById('openAddBtn');
+    if (overlay){
+      const mo = new MutationObserver(()=>{
+        const open = overlay.getAttribute('aria-hidden') === 'false';
+        if (open) {
+          document.getElementById('category')?.focus();
+        } else {
+          addBtn?.focus();
+        }
+      });
+      mo.observe(overlay, { attributes:true, attributeFilter:['aria-hidden'] });
+    }
   })();
   </script>
 </body>
 </html>
-
