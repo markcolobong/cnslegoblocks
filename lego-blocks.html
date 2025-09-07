@@ -606,5 +606,54 @@
   <!-- CSS tip:
        .modal-overlay[aria-hidden="true"]  { display:none; }
        .modal-overlay[aria-hidden="false"] { display:block; }  -->
+  <!-- Stubborn fresh render shim: ensures the table always shows the latest file on load/refresh -->
+<script>
+(function(){
+  async function stubbornPaint(reason){
+    try {
+      // 1) Clear any filter so the full list renders, same as when you manually clear Search
+      const search = document.getElementById('search');
+      if (search) {
+        const prev = search.value;
+        if (prev !== '') {
+          search.value = '';
+          search.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          // Even if empty, still fire input to trigger any code paths bound to search
+          search.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+
+      // 2) Ask the app to re-render from XML (LegoSettings.refresh),
+      //    then do a short follow-up to defeat any stale caches
+      if (window.LegoSettings?.refresh) {
+        try { await LegoSettings.refresh(); } catch {}
+        setTimeout(() => { try { LegoSettings.refresh(); } catch {} }, 150);
+      }
+    } catch {}
+  }
+
+  // When a save just happened (we emit this from storage-xml-github.js)
+  window.addEventListener('lego:recordsSaved', () => stubbornPaint('saved'));
+
+  // When the page (re)appears or loads
+  window.addEventListener('pageshow', () => stubbornPaint('pageshow'));
+  document.addEventListener('DOMContentLoaded', () => stubbornPaint('domready'));
+  window.addEventListener('focus', () => stubbornPaint('focus'));
+
+  // Also run right after a successful login unlock
+  const guard = window.__authGuard;
+  if (guard && typeof guard.unlock === 'function') {
+    const origUnlock = guard.unlock.bind(guard);
+    guard.unlock = function(){
+      const r = origUnlock();
+      stubbornPaint('unlock');
+      return r;
+    };
+  }
+})();
+</script>
+
 </body>
 </html>
+
