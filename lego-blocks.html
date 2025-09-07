@@ -642,14 +642,10 @@
   })();
   </script>
 
-  <!-- Add Record glue (targeted edit by id + create) -->
-<!-- Add Record glue (append blank record with id only; no defaults added) -->
+<!-- Add Record glue (open modal only; write on Save; unique id; append to bottom; editing preserved) -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
-  const appReady = () =>
-    document.documentElement.getAttribute('data-auth') === 'unlocked' &&
-    !!(window.XmlGitHubStorage?.hasToken && XmlGitHubStorage.hasToken());
 
   const addBtn   = $('openAddBtn');
   const overlay  = $('modalOverlay');
@@ -659,10 +655,10 @@
 
   function genId(){ return 'r_' + Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
-  function openModalForCreate(prefillId){
+  function openModalBlank(){
     if (!overlay || !form) return;
     form.reset();
-    if (idInput) idInput.value = prefillId || '';
+    if (idInput) idInput.value = '';      // ensure CREATE mode
     overlay.style.display = '';
     overlay.setAttribute('aria-hidden','false');
   }
@@ -672,73 +668,27 @@
     overlay.setAttribute('aria-hidden','true');
   }
 
-  // ADD: append a new blank record (only id) to XML, then open modal to edit it
-  addBtn?.addEventListener('click', async (e)=>{
+  // 1) Click "+ Add record" → open modal only (no validation / no write)
+  addBtn?.addEventListener('click', (e)=>{
     e.preventDefault();
-    if (!appReady()){ alert('Please login with a valid GitHub token first.'); return; }
-    if (!window.XmlGitHubStorage?.replaceAll || !window.XmlGitHubStorage?.load){
-      alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-      return;
-    }
-
-    const newId = genId();
-    const newRecord = {
-      id: newId,
-      category: '',
-      phase: '',
-      activity: '',
-      outcome: '',
-      presentationOwner: '',
-      contentOwner: '',
-      notes: '',
-      links: [],
-      tiers: {
-        tier_1:   '',
-        tier_1_1: '',
-        tier_1_2: '',
-        tier_2:   '',
-        tier_2_1: '',
-        tier_3:   '',
-        tier_3_1: '',
-        tier_3_2: ''
-      }
-    };
-
-    try{
-      const all = await XmlGitHubStorage.load(); // fetch current XML
-      all.push(newRecord);                       // append at bottom
-      await XmlGitHubStorage.replaceAll(all);    // save back (creates file if missing)
-      try{ await window.LegoSettings?.refresh?.(); }catch{}
-      openModalForCreate(newId);                 // open modal targeted to this id
-    }catch(err){
-      console.error(err);
-      alert('Add failed: ' + (err?.message || err));
-    }
+    openModalBlank();
   });
 
   closeBtn?.addEventListener('click', (e)=>{ e.preventDefault(); closeModal(); });
   overlay?.addEventListener('click', (e)=>{ if (e.target === overlay) closeModal(); });
 
-  // SAVE (targeted edit by id if #recordId present; otherwise create)
-  if (form && !form.dataset.boundSave){
-    form.dataset.boundSave = 'true';
+  // 2) Save on submit
+  if (form && !form.dataset.boundSaveForAdd){
+    form.dataset.boundSaveForAdd = 'true';
 
     const val  = (id) => ($(id) ? $(id).value : '');
     const text = (id) => ($(id) ? $(id).value.trim() : '');
 
     form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      if (!window.XmlGitHubStorage?.upsertOne){
-        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
-        return;
-      }
-      if (!XmlGitHubStorage.hasToken?.()){
-        alert('Write disabled: please login with a valid GitHub token first.');
-        return;
-      }
-
+      // Build the record from user input first
+      const currentId = val('recordId'); // empty when adding
       const record = {
-        id: val('recordId') || genId(),
+        id: currentId,
         category: val('category'),
         phase: val('phase'),
         activity: text('activity'),
@@ -762,9 +712,28 @@
         }
       };
 
-      // honor your existing required fields in the form (browser will block if missing)
+      // Keep your existing requireds
       if (!record.category || !record.phase || !record.activity || !record.outcome){
+        // Let the browser required attributes help; this is just a friendly message.
         alert('Please complete Category, Phase, Activity, and Outcome.');
+        e.preventDefault();
+        return;
+      }
+
+      // If this is an EDIT, do nothing here — let your existing edit handler run unchanged.
+      if (currentId){
+        return; // preserve existing editing functionality
+      }
+
+      // From here on, it's an ADD (no recordId yet): write to XML with a fresh unique id and append at bottom.
+      e.preventDefault();
+
+      if (!window.XmlGitHubStorage?.load || !window.XmlGitHubStorage?.replaceAll){
+        alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
+        return;
+      }
+      if (!XmlGitHubStorage.hasToken?.()){
+        alert('Write disabled: please login with a valid GitHub token first.');
         return;
       }
 
@@ -773,13 +742,17 @@
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
       try{
-        const isEdit = !!val('recordId');
-        if (isEdit && XmlGitHubStorage.updateOneById){
-          await XmlGitHubStorage.updateOneById(record);   // targeted update by id
-        }else{
-          await XmlGitHubStorage.upsertOne(record);       // create (or upsert)
-        }
-        if (idInput) idInput.value = record.id;
+        // Load existing to ensure uniqueness & append at the end
+        const all = await XmlGitHubStorage.load();
+        const ids = new Set(all.map(r => r.id));
+        let newId = genId();
+        while (ids.has(newId)) newId = genId(); // 4) ensure unique id
+        record.id = newId;
+
+        all.push(record);                        // 5) append to bottom
+        await XmlGitHubStorage.replaceAll(all);  // write once to XML via PAT
+
+        if (idInput) idInput.value = record.id;  // keep id in the form (in case modal stays open)
         try{ await window.LegoSettings?.refresh?.(); }catch{}
         closeModal();
       }catch(err){
@@ -788,29 +761,7 @@
       }finally{
         if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }
-    });
-
-    const delBtn = $('editDeleteBtn');
-    delBtn?.addEventListener('click', async ()=>{
-      if (!XmlGitHubStorage.hasToken?.()){
-        alert('Write disabled: please login with a valid GitHub token first.');
-        return;
-      }
-      const id = (idInput ? idInput.value : '');
-      if (!id){ alert('No record selected.'); return; }
-      if (!confirm('Delete this record?')) return;
-
-      try{
-        await XmlGitHubStorage.deleteOne(id);
-        try{ await window.LegoSettings?.refresh?.(); }catch{}
-        form.reset();
-        if (idInput) idInput.value = '';
-        closeModal();
-      }catch(err){
-        console.error(err);
-        alert('Delete failed: ' + (err?.message || err));
-      }
-    });
+    }, true); // capture so this runs before any other submit listeners
   }
 })();
 </script>
@@ -940,4 +891,5 @@
   -->
 </body>
 </html>
+
 
