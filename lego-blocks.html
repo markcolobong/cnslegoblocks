@@ -325,10 +325,23 @@
       }
     }
 
+    function clearSearch(){
+      const s=document.getElementById('search');
+      if (s){ s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); }
+    }
+
+    function refreshCascade(tag){
+      // Always use your app’s renderer; double-run to beat remote caching
+      clearSearch();
+      if (window.LegoSettings?.refresh){
+        try{ LegoSettings.refresh(); }catch{}
+        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 300);
+        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 900);
+      }
+    }
+
     async function forceFreshRender(){
-      try{ await XmlGitHubStorage.load(); }catch{}
-      try{ await window.LegoSettings?.refresh?.(); }catch{}
-      setTimeout(async ()=>{ try{ await window.LegoSettings?.refresh?.(); }catch{} }, 200);
+      refreshCascade('force');
     }
 
     function unlockUI(pat){
@@ -342,8 +355,7 @@
         if (app) app.style.display=''; if (gate) gate.style.display='none';
       }
       if (logout) logout.style.display='';
-      // First render after successful login always cache-busted
-      forceFreshRender();
+      refreshCascade('unlock');
     }
 
     function lockUI(){
@@ -420,12 +432,12 @@
       uEl.value=''; pEl.value=''; patEl.value='';
     });
 
-    // Expose a global re-render helper for other blocks below
-    window.forceFreshLegoRender = forceFreshRender;
+    // Make available to Add module
+    window.refreshCascade = refreshCascade;
   })();
   </script>
 
-  <!-- ADD: Append row only AFTER modal closes (post-save) + force fresh load from XML (commit-aware) -->
+  <!-- ADD: append row AFTER modal closes (post-save) + trigger refresh cascade -->
   <script>
   (function(){
     const $  = (id)=>document.getElementById(id);
@@ -445,9 +457,8 @@
     function parseCount(){ const m=(countPill?.textContent||'').match(/(\d+)/); return m?parseInt(m[1],10):NaN; }
     function setCount(n){ if (countPill && Number.isFinite(n)) countPill.textContent = `${n} records`; }
 
-    // Clone first row as template so the instant row matches exact structure/styles
     function appendRowImmediate(rec){
-      const tb  = q('#dataTable tbody');
+      const tb = q('#dataTable tbody');
       if (!tb) return;
 
       const tpl = tb.querySelector('tr');
@@ -456,7 +467,6 @@
       if (tpl){
         tr = tpl.cloneNode(true);
         tr.dataset.id = rec.id;
-
         const cells = tr.querySelectorAll('td');
 
         const setText = (idx, val) => {
@@ -464,24 +474,21 @@
           cells[idx].innerHTML = '';
           cells[idx].textContent = S(val);
         };
-const setTier = (idx, val) => {
-  if (!cells[idx]) return;
-  const cell = cells[idx];
-  // show ONLY a pill; clear any existing text/children
-  cell.innerHTML = '';
-  const pill = document.createElement('span');
-  pill.className = 'pill';
-  pill.setAttribute('data-value', S(val));
-  pill.textContent = S(val);
-  cell.appendChild(pill);
-};
+        const setTier = (idx, val) => {
+          if (!cells[idx]) return;
+          const cell = cells[idx];
+          cell.innerHTML = '';
+          const pill = document.createElement('span');
+          pill.className = 'pill';
+          pill.setAttribute('data-value', S(val));
+          pill.textContent = S(val);
+          cell.appendChild(pill);
+        };
 
-        // 0..3 text
         setText(0, rec.category);
         setText(1, rec.phase);
         setText(2, rec.activity);
         setText(3, rec.outcome);
-        // 4..11 tiers
         setTier(4,  rec.tiers?.tier_1);
         setTier(5,  rec.tiers?.tier_1_1);
         setTier(6,  rec.tiers?.tier_1_2);
@@ -491,26 +498,34 @@ const setTier = (idx, val) => {
         setTier(10, rec.tiers?.tier_3_1);
         setTier(11, rec.tiers?.tier_3_2);
 
-        // actions: ensure data-id targets new record
-        const view = tr.querySelector('.view-link');
-        const del  = tr.querySelector('.delete-link');
-        if (view) view.setAttribute('data-id', rec.id);
-        if (del)  del.setAttribute('data-id', rec.id);
+        // normalize actions so View/Delete target new id
+        const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
+        if (actionsCell){
+          actionsCell.querySelectorAll('a,button').forEach(el=>{
+            el.setAttribute('data-id', rec.id);
+            const txt = (el.textContent || '').toLowerCase();
+            if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
+              el.classList.add('view-link'); el.setAttribute('data-action','view');
+            }
+            if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
+              el.classList.add('delete-link'); el.setAttribute('data-action','delete');
+            }
+          });
+        }
       } else {
-        // Fallback when table is initially empty (rare)
+        // Empty table fallback
         tr = document.createElement('tr');
         tr.dataset.id = rec.id;
         const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
         const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
+
         tr.appendChild(td(rec.category,'cat'));
         tr.appendChild(td(rec.phase,'phase'));
         tr.appendChild(td(rec.activity,'activity'));
         tr.appendChild(td(rec.outcome,'outcome'));
-        const fr=document.createDocumentFragment();
-        [['tier_1'],['tier_1_1'],['tier_1_2'],['tier_2'],['tier_2_1'],['tier_3'],['tier_3_1'],['tier_3_2']].forEach(([k])=>{
-          const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); fr.appendChild(cell);
+        ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'].forEach(k=>{
+          const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); tr.appendChild(cell);
         });
-        tr.appendChild(fr);
         const actions=document.createElement('td');
         actions.className='actions';
         actions.innerHTML = `
@@ -520,25 +535,6 @@ const setTier = (idx, val) => {
         `;
         tr.appendChild(actions);
       }
-      
-// normalize actions so they always carry the new id
-const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
-
-if (actionsCell){
-  actionsCell.querySelectorAll('a,button').forEach(el=>{
-    el.setAttribute('data-id', rec.id);
-    // add tolerant classnames / attrs so delegated handlers can find them
-    const txt = (el.textContent || '').toLowerCase();
-    if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
-      el.classList.add('view-link');
-      el.setAttribute('data-action','view');
-    }
-    if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
-      el.classList.add('delete-link');
-      el.setAttribute('data-action','delete');
-    }
-  });
-}
 
       tb.appendChild(tr);
     }
@@ -550,17 +546,16 @@ if (actionsCell){
       const del = document.getElementById('editDeleteBtn');
       if (del && del.style) del.style.display = 'none';
       form.dataset.mode = 'create';
-      // Let CSS control centering; we only toggle aria
       document.getElementById('modalOverlay')?.setAttribute('aria-hidden','false');
     });
 
-    // Capture Add submit to snapshot data & ensure the ID we want
     let pendingAdd = null;
+
+    // Capture Add submit to snapshot values (ID will be generated now)
     form.addEventListener('submit', (e)=>{
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
       if (!isCreate) return;
 
-      // Derive next id from DOM to keep order nice; fallback unique id
       const rows = qa('#dataTable tbody tr[data-id]');
       const last = rows.length ? rows[rows.length-1].dataset.id || '' : '';
       let nextId;
@@ -593,13 +588,11 @@ if (actionsCell){
         }
       };
 
-      // Ensure your saver uses THIS id
-      if (idInput) idInput.value = rec.id;
-      pendingAdd = rec;
-      // Do not preventDefault; your existing handler saves and closes modal
+      if (idInput) idInput.value = rec.id; // make sure the saver uses this exact id
+      pendingAdd = rec;                     // we append after modal closes (i.e., save is done)
     }, true);
 
-    // After the modal actually closes (save finished), append row then force fresh load from XML
+    // When the modal actually closes after save → append instantly and refresh cascade
     const mo = new MutationObserver(async (mlist)=>{
       for (const m of mlist){
         if (m.type==='attributes' && m.attributeName==='aria-hidden'){
@@ -607,12 +600,11 @@ if (actionsCell){
           if (nowHidden && pendingAdd){
             const rec = pendingAdd; pendingAdd = null;
 
-            // Instant visible row + count
             appendRowImmediate(rec);
             const c=parseCount(); if (!isNaN(c)) setCount(c+1);
 
-            // Fresh, commit-aware load → canonical re-render (uses session-stored commit SHA from save)
-            if (window.forceFreshLegoRender) { try{ await window.forceFreshLegoRender(); }catch{} }
+            // ask the app to repaint from XML a few times (handles GitHub replication lag)
+            if (window.refreshCascade) window.refreshCascade('after-add');
           }
         }
       }
@@ -621,313 +613,51 @@ if (actionsCell){
   })();
   </script>
 
-  <!-- CSS tip:
-       .modal-overlay[aria-hidden="true"]  { display:none; }
-       .modal-overlay[aria-hidden="false"] { display:block; }  -->
-  <!-- Stubborn fresh render shim: ensures the table always shows the latest file on load/refresh -->
-<script>
-(function(){
-  async function stubbornPaint(reason){
-    try {
-      // 1) Clear any filter so the full list renders, same as when you manually clear Search
-      const search = document.getElementById('search');
-      if (search) {
-        const prev = search.value;
-        if (prev !== '') {
-          search.value = '';
-          search.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-          // Even if empty, still fire input to trigger any code paths bound to search
-          search.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      }
-
-      // 2) Ask the app to re-render from XML (LegoSettings.refresh),
-      //    then do a short follow-up to defeat any stale caches
-      if (window.LegoSettings?.refresh) {
-        try { await LegoSettings.refresh(); } catch {}
-        setTimeout(() => { try { LegoSettings.refresh(); } catch {} }, 150);
-      }
-    } catch {}
-  }
-
-  // When a save just happened (we emit this from storage-xml-github.js)
-  window.addEventListener('lego:recordsSaved', () => stubbornPaint('saved'));
-
-  // When the page (re)appears or loads
-  window.addEventListener('pageshow', () => stubbornPaint('pageshow'));
-  document.addEventListener('DOMContentLoaded', () => stubbornPaint('domready'));
-  window.addEventListener('focus', () => stubbornPaint('focus'));
-
-  // Also run right after a successful login unlock
-  const guard = window.__authGuard;
-  if (guard && typeof guard.unlock === 'function') {
-    const origUnlock = guard.unlock.bind(guard);
-    guard.unlock = function(){
-      const r = origUnlock();
-      stubbornPaint('unlock');
-      return r;
-    };
-  }
-})();
-</script>
-<script>
-(function(){
-  const SS_LAST_SHA = 'lego_last_commit_sha';
-
-  const $  = (id)=>document.getElementById(id);
-  const q  = (sel, el=document)=>el.querySelector(sel);
-  const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
-  const S  = (v)=>String(v ?? '');
-
-  // Build a single TR that matches your table’s look & feel.
-
- <script>
-(function(){
-  const $  = (id)=>document.getElementById(id);
-  const q  = (sel, el=document)=>el.querySelector(sel);
-  const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
-  const S  = (v)=>String(v ?? '');
-
-  // Build a single TR that matches your table’s look & feel.
-  // ✅ Fixed: no stray `};` — all braces balanced.
-  function buildRow(rec, templateRow){
-    let tr;
-    if (templateRow){
-      tr = templateRow.cloneNode(true);
-      tr.dataset.id = rec.id;
-
-      const cells = tr.querySelectorAll('td');
-
-      const setText = (idx, val) => {
-        if (!cells[idx]) return;
-        cells[idx].innerHTML = '';
-        cells[idx].textContent = S(val);
-      };
-      const setTier = (idx, val) => {
-        if (!cells[idx]) return;
-        const cell = cells[idx];
-        cell.innerHTML = '';
-        const pill = document.createElement('span');
-        pill.className = 'pill';
-        pill.setAttribute('data-value', S(val));
-        pill.textContent = S(val);
-        cell.appendChild(pill);
-      };
-
-      // 0..3 text
-      setText(0, rec.category);
-      setText(1, rec.phase);
-      setText(2, rec.activity);
-      setText(3, rec.outcome);
-      // 4..11 tiers
-      setTier(4,  rec.tiers?.tier_1);
-      setTier(5,  rec.tiers?.tier_1_1);
-      setTier(6,  rec.tiers?.tier_1_2);
-      setTier(7,  rec.tiers?.tier_2);
-      setTier(8,  rec.tiers?.tier_2_1);
-      setTier(9,  rec.tiers?.tier_3);
-      setTier(10, rec.tiers?.tier_3_1);
-      setTier(11, rec.tiers?.tier_3_2);
-
-      // normalize actions so View/Delete target the new id
-      const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
-      if (actionsCell){
-        actionsCell.querySelectorAll('a,button').forEach(el=>{
-          el.setAttribute('data-id', rec.id);
-          const txt = (el.textContent || '').toLowerCase();
-          if (txt.includes('view') || /view-?details|view-link|btn-view/.test(el.className)){
-            el.classList.add('view-link');
-            el.setAttribute('data-action','view');
-          }
-          if (txt.includes('delete') || /delete-link|btn-delete|danger/.test(el.className)){
-            el.classList.add('delete-link');
-            el.setAttribute('data-action','delete');
-          }
-        });
-      }
-    } else {
-      // Fallback when the table was empty
-      tr = document.createElement('tr');
-      tr.dataset.id = rec.id;
-
-      const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
-      const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
-
-      tr.appendChild(td(rec.category,'cat'));
-      tr.appendChild(td(rec.phase,'phase'));
-      tr.appendChild(td(rec.activity,'activity'));
-      tr.appendChild(td(rec.outcome,'outcome'));
-
-      ['tier_1','tier_1_1','tier_1_2','tier_2','tier_2_1','tier_3','tier_3_1','tier_3_2'].forEach(k=>{
-        const cell=document.createElement('td'); cell.className='tier-col'; cell.appendChild(mk(rec.tiers?.[k])); tr.appendChild(cell);
-      });
-
-      const actions=document.createElement('td');
-      actions.className='actions';
-      actions.innerHTML = `
-        <a href="#" class="tiny view-link" data-id="${rec.id}">View</a>
-        <span class="sep">•</span>
-        <a href="#" class="tiny danger delete-link" data-id="${rec.id}">Delete</a>
-      `;
-      tr.appendChild(actions);
+  <!-- Global repaint hooks (page load, focus, and after a successful save from storage-xml-github.js) -->
+  <script>
+  (function(){
+    function clearSearch(){
+      const s=document.getElementById('search');
+      if (s){ s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); }
     }
-
-    return tr;
-  }
-
-  // expose if you need it elsewhere in this block scope
-  window.__lego_buildRow = buildRow;
-})();
-</script>
-
-
-  
-
-  function setCount(n){
-    const pill = $('countPill');
-    if (pill) pill.textContent = `${n} records`;
-  }
-
-  // Hard repaint from XML (commit-aware)
-  async function loadFreshRecords(){
-    const stickySha = (sessionStorage.getItem(SS_LAST_SHA) || '').trim();
-    try{
-      if (stickySha && window.XmlGitHubStorage?.loadAtRef){
-        const recs = await XmlGitHubStorage.loadAtRef(stickySha);
-        if (Array.isArray(recs)) return recs;
-      }
-    }catch{}
-    // Fallback to normal load (already cache-busted in storage file)
-    try { return await XmlGitHubStorage.load(); } catch { return []; }
-  }
-
-  async function hardRepaint(reason){
-    const tb = q('#dataTable tbody');
-    if (!tb) return;
-    // Clear any active search filter (this mimics what you do manually)
-    const search = $('search');
-    if (search){
-      const prev = search.value;
-      if (prev !== '') {
-        search.value = '';
-        search.dispatchEvent(new Event('input', { bubbles: true }));
+    function refreshCascade(tag){
+      clearSearch();
+      if (window.LegoSettings?.refresh){
+        try{ LegoSettings.refresh(); }catch{}
+        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 300);
+        setTimeout(()=>{ try{ LegoSettings.refresh(); }catch{} }, 900);
       }
     }
 
-    // Fetch the freshest possible XML and rebuild
-    const records = await loadFreshRecords();
+    // When the XML write finishes, storage-xml-github.js emits this
+    window.addEventListener('lego:recordsSaved', ()=> refreshCascade('saved'));
 
-    // Keep a template row (first existing row) for consistent formatting
-    const templateRow = tb.querySelector('tr');
+    // On page (re)appear and initial load
+    document.addEventListener('DOMContentLoaded', ()=> refreshCascade('domready'));
+    window.addEventListener('pageshow', ()=> refreshCascade('pageshow'));
+    window.addEventListener('focus', ()=> refreshCascade('focus'));
 
-    const frag = document.createDocumentFragment();
-    (records || []).forEach(rec => frag.appendChild(buildRow(rec, templateRow)));
-    tb.innerHTML = '';
-    tb.appendChild(frag);
-    setCount(records.length);
-
-    // Let existing code re-bind anything it delegates after DOM update
-    try { window.dispatchEvent(new CustomEvent('lego:tableRepainted', { detail: { reason, count: records.length } })); } catch {}
-  }
-
-  // ---- Wire-up: repaint on all the right lifecycle moments ----
-  // After a successful save (our storage emits this)
-  window.addEventListener('lego:recordsSaved', ()=> hardRepaint('saved'));
-
-  // On first unlock (login success)
-  (function hookUnlock(){
-    if (!window.__authGuard || typeof __authGuard.unlock !== 'function') return;
-    const orig = __authGuard.unlock.bind(__authGuard);
-    __authGuard.unlock = function(){
-      const r = orig();
-      hardRepaint('unlock');
-      return r;
-    };
+    // Make available if something else wants it
+    window.refreshCascade = window.refreshCascade || refreshCascade;
   })();
+  </script>
 
-  // On initial load/refresh and when tab refocuses
-  document.addEventListener('DOMContentLoaded', ()=> hardRepaint('domready'));
-  window.addEventListener('pageshow', ()=> hardRepaint('pageshow'));
-  window.addEventListener('focus', ()=> hardRepaint('focus'));
-})();
-</script>
-  
-<script>
-(function(){
-  // Handle View Details clicks even on freshly appended rows
-  document.addEventListener('click', function(e){
-    const el = e.target.closest('[data-action="view"], .view-link, .view-details, .btn-view');
-    if (!el) return;
-    e.preventDefault();
+  <!-- Delegate "View" so freshly added rows work immediately -->
+  <script>
+  (function(){
+    document.addEventListener('click', function(e){
+      const el = e.target.closest('[data-action="view"], .view-link, .view-details, .btn-view');
+      if (!el) return;
+      e.preventDefault();
+      const id = el.getAttribute('data-id') || el.closest('tr')?.dataset.id;
+      if (!id) return;
 
-    const id = el.getAttribute('data-id') || el.closest('tr')?.dataset.id;
-    if (!id) return;
+      if (window.LegoSettings?.openDetailsById) { try{ LegoSettings.openDetailsById(id); }catch{} return; }
+      if (window.LegoSettings?.openDetails)     { try{ LegoSettings.openDetails(id);     }catch{} return; }
 
-    // Prefer your existing API if it exists
-    if (window.LegoSettings?.openDetailsById) { try{ LegoSettings.openDetailsById(id); }catch{} return; }
-    if (window.LegoSettings?.openDetails)     { try{ LegoSettings.openDetails(id);     }catch{} return; }
-
-    // Fallback: emit an event for lego-settings.js to catch
-    try { window.dispatchEvent(new CustomEvent('lego:openDetails', { detail: { id } })); } catch {}
-  }, true);
-})();
-</script>
-
-<script>
-(function(){
-  async function forceFreshUI(reason){
-    try {
-      // Load from the last commit if we have it (commit-aware), else normal
-      const recs = (window.XmlGitHubStorage?.loadFreshPreferringSha)
-        ? await XmlGitHubStorage.loadFreshPreferringSha()
-        : (await (window.XmlGitHubStorage?.load?.() || []));
-
-      // Clear any search filter so full list is visible (mirrors your manual workaround)
-      const search = document.getElementById('search');
-      if (search) {
-        search.value = '';
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-
-      // Ask your existing code to repaint with fresh data
-      if (window.LegoSettings?.refresh) {
-        try { await LegoSettings.refresh(); } catch {}
-      }
-
-      // Safety: kick a follow-up repaint shortly after (defeats any stale overpaint)
-      setTimeout(() => { try { window.LegoSettings?.refresh?.(); } catch {} }, 150);
-    } catch {}
-  }
-
-  // After a successful save (file definitely updated)
-  window.addEventListener('lego:recordsSaved', () => forceFreshUI('saved'));
-
-  // On first unlock/login
-  if (window.__authGuard && typeof __authGuard.unlock === 'function') {
-    const _u = __authGuard.unlock.bind(__authGuard);
-    __authGuard.unlock = function(){
-      const r = _u();
-      forceFreshUI('unlock');
-      return r;
-    };
-  }
-
-  // On page load / refresh / tab focus
-  document.addEventListener('DOMContentLoaded', () => forceFreshUI('domready'));
-  window.addEventListener('pageshow', () => forceFreshUI('pageshow'));
-  window.addEventListener('focus', () => forceFreshUI('focus'));
-})();
-</script>
-
-  
+      try { window.dispatchEvent(new CustomEvent('lego:openDetails', { detail: { id } })); } catch {}
+    }, true);
+  })();
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
