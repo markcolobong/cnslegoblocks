@@ -615,28 +615,116 @@
     `;
     return tdA;
   }
-  function appendRowImmediate(rec){
-    const tb=q('#dataTable tbody'); if (!tb) return;
-    const tr=document.createElement('tr');
-    tr.dataset.id=rec.id;
+  <script>
+// REPLACE your existing appendRowImmediate with THIS version.
+function appendRowImmediate(rec){
+  const tb  = document.querySelector('#dataTable tbody');
+  if (!tb) return;
+
+  // Use the first existing row as a template for structure/styles
+  const tpl = tb.querySelector('tr');
+  let tr;
+
+  if (tpl){
+    // Clone the fully-styled row, then replace content
+    tr = tpl.cloneNode(true);
+    tr.dataset.id = rec.id;
+
+    const cells = tr.querySelectorAll('td');
+
+    // helpers to set cell content while preserving structure/classes
+    const S = (v) => String(v ?? '');
+    const setText = (idx, val) => {
+      if (!cells[idx]) return;
+      // Clear and set plain text
+      cells[idx].innerHTML = '';
+      cells[idx].textContent = S(val);
+    };
+    const setTier = (idx, val) => {
+      if (!cells[idx]) return;
+      const cell = cells[idx];
+
+      // Try to find the existing pill/chip/badge node and update its text + data-value
+      let pill = cell.querySelector('.pill, .badge, .chip, span');
+      if (!pill){
+        // If the template didn't have a pill node for some reason, fall back to plain text
+        cell.innerHTML = '';
+        cell.textContent = S(val);
+        return;
+      }
+      pill.textContent = S(val);
+      pill.setAttribute('data-value', S(val));
+    };
+
+    // 0..3: basic text columns
+    setText(0, rec.category);
+    setText(1, rec.phase);
+    setText(2, rec.activity);
+    setText(3, rec.outcome);
+
+    // 4..11: tier columns (preserve pill structure/classes)
+    setTier(4,  rec.tiers?.tier_1);
+    setTier(5,  rec.tiers?.tier_1_1);
+    setTier(6,  rec.tiers?.tier_1_2);
+    setTier(7,  rec.tiers?.tier_2);
+    setTier(8,  rec.tiers?.tier_2_1);
+    setTier(9,  rec.tiers?.tier_3);
+    setTier(10, rec.tiers?.tier_3_1);
+    setTier(11, rec.tiers?.tier_3_2);
+
+    // Actions: just re-point data-id so View/Delete work instantly
+    const view = tr.querySelector('.view-link');
+    const del  = tr.querySelector('.delete-link');
+    if (view) view.setAttribute('data-id', rec.id);
+    if (del)  del.setAttribute('data-id', rec.id);
+  } else {
+    // Fallback if there is no existing row to copy (empty table scenario)
+    tr = document.createElement('tr');
+    tr.dataset.id = rec.id;
+
+    const S = (v) => String(v ?? '');
+    const td = (nodeOrText, cls) => {
+      const el = document.createElement('td');
+      if (cls) el.className = cls;
+      if (nodeOrText instanceof Node) el.appendChild(nodeOrText);
+      else el.textContent = S(nodeOrText);
+      return el;
+    };
+
+    const makePill = (val) => {
+      const p = document.createElement('span');
+      p.className = 'pill';                 // your CSS will style this
+      p.setAttribute('data-value', S(val));
+      p.textContent = S(val);
+      return p;
+    };
 
     tr.appendChild(td(rec.category, 'cat'));
     tr.appendChild(td(rec.phase, 'phase'));
     tr.appendChild(td(rec.activity, 'activity'));
     tr.appendChild(td(rec.outcome, 'outcome'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_1),   'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_1_1), 'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_1_2), 'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_2),   'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_2_1), 'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_3),   'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_3_1), 'tier-col'));
+    tr.appendChild(td(makePill(rec.tiers?.tier_3_2), 'tier-col'));
 
-    tr.appendChild(td(pill(rec.tiers?.tier_1),   'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_1_1), 'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_1_2), 'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_2),   'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_2_1), 'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_3),   'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_3_1), 'tier-col'));
-    tr.appendChild(td(pill(rec.tiers?.tier_3_2), 'tier-col'));
-
-    tr.appendChild(actionsCell(rec.id));
-    tb.appendChild(tr);
+    const actions = document.createElement('td');
+    actions.className = 'actions';
+    actions.innerHTML = `
+      <a href="#" class="tiny view-link" data-id="${rec.id}">View</a>
+      <span class="sep">•</span>
+      <a href="#" class="tiny danger delete-link" data-id="${rec.id}">Delete</a>
+    `;
+    tr.appendChild(actions);
   }
+
+  tb.appendChild(tr);
+}
+</script>
 
   // Make View/Delete work immediately for appended rows (delegated)
   (function bindDelegatesOnce(){
@@ -868,6 +956,7 @@
 
 </body>
 </html>
+
 
 
 
