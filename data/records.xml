@@ -1,3 +1,1179 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Records version="1">
+  <Record id="rec_1757220392585_1">
+    <Category>Preparation</Category>
+    <Phase>PRE</Phase>
+    <Activity>[Pre visit] Kickoff call</Activity>
+    <Outcome>Align expectations, roles, and visit objectives across teams.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_2">
+    <Category>Preparation</Category>
+    <Phase>PRE</Phase>
+    <Activity>[Pre visit] Dry run</Activity>
+    <Outcome>Ensure a seamless, professional experience and minimize risks.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_3">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>GDS PH Overview - External</Activity>
+    <Outcome>Showcase GDS PH's scale, capability, and strategic importance in the global network.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_4">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>GDS PH Overview - Account / MF</Activity>
+    <Outcome>Demonstrate value delivery, talent quality, and operational maturity supporting account/MF needs.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>for first timers;</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_5">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>GDS PH Overview - GDS</Activity>
+    <Outcome>Emphasize collaboration, capability alignment, and global impact from PH.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>for first timers/ refresher</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_6">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>GDS PH Unique Soul</Activity>
+    <Outcome>Highlight the unique culture, people-first mindset, and values that make GDS PH special.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>for first time visitors for Philippines</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_7">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Business Review - Overall</Activity>
+    <Outcome>Demonstrate GDS PH's strategic growth, capabilities, and future-readiness.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_8">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Business Review - Finance/Operations</Activity>
+    <Outcome>Reinforce financial sustainability, operational excellence, and performance metrics.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392585_9">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Business Review - Key Strategies</Activity>
+    <Outcome>Communicate future focus areas, transformation priorities, and innovation efforts.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_10">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Key Strategies (Customer Facing) - Road to 4000 slide</Activity>
+    <Outcome>Communicate future focus areas, transformation priorities, and innovation efforts.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_11">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Consulting 18F Stop 1</Activity>
+    <Outcome>Showcase Consulting teams in action, collaboration culture, innovation and delivery excellence.</Outcome>
+    <PresentationOwner>Visit Host and Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_12">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Consulting 18F Stop 2</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_13">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Consulting 18F Stop 3</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner>Visit Host/ Innovation</PresentationOwner>
+    <ContentOwner>Innovation</ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_14">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Consulting 18F Stop 4 / Cyber Soc</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner>Cyber Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_15">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Consulting 18F Stop 5</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_16">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Meeting with SGV</Activity>
+    <Outcome>To strengthen collaboration, enhance alignment on priorities, and identify opportunities for joint value creation between EY GDS and SGV.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_17">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Demo - Use Cases</Activity>
+    <Outcome>To demonstrate GDS's innovation capabilities through real-world solutions that showcase how we deliver value to clients across industries.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_18">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Client/ Account Business and Strategy Overview</Activity>
+    <Outcome>To provide visibility on account goals and strategies, ensuring alignment with GDS delivery capabilities and supporting business growth.</Outcome>
+    <PresentationOwner>Visitor</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_19">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Sector Overview</Activity>
+    <Outcome>To highlight key trends, opportunities, and how GDS is positioned to support sector-driven transformation aligned with EY's global strategy.</Outcome>
+    <PresentationOwner>Visit Team/ Sector Leader</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_20">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Account/ Client Audit Reviews</Activity>
+    <Outcome>Our strategies around BCP, Security, and IT</Outcome>
+    <PresentationOwner>Visit Host/ GDS Ops</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_21">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Story on TechOps</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner>Lloyd/ Au</ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_22">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Story on Multilingual</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner>Rhea/ Lida</ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_23">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Story on BOT (Build Operate Transfer)</Activity>
+    <Outcome></Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_24">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Consulting 17F ODC</Activity>
+    <Outcome>Demonstrate the secure and scalable delivery setup for offshore development.</Outcome>
+    <PresentationOwner>Visit Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_25">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Floorwalk - Facilities</Activity>
+    <Outcome>Highlight employee-focused design, safety, sustainability, and space functionality.</Outcome>
+    <PresentationOwner>Visit Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_26">
+    <Category>Presentation</Category>
+    <Phase>PRE</Phase>
+    <Activity>Meeting with IBPAP, industry</Activity>
+    <Outcome>To engage with industry leaders, reinforce EY GDS's commitment to the local IT-BPM sector, and explore areas for ecosystem collaboration and influence.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_27">
+    <Category>Group Meet</Category>
+    <Phase>PRE</Phase>
+    <Activity>Meet &amp; Greet with Key Account Resources from PH</Activity>
+    <Outcome>To foster stronger relationships and connection between PH-based talent and account leadership, while showcasing the strength of local capabilities and collaboration.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_28">
+    <Category>Group Meet</Category>
+    <Phase>PRE</Phase>
+    <Activity>Townhall</Activity>
+    <Outcome>Inspire and engage teams; build visibility and trust in leadership.</Outcome>
+    <PresentationOwner>Visit Team</PresentationOwner>
+    <ContentOwner>Visit Team</ContentOwner>
+    <Notes>depending if with LIF or not</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_29">
+    <Category>Group Meet</Category>
+    <Phase>PRE</Phase>
+    <Activity>R&amp;R</Activity>
+    <Outcome>Celebrate achievements and reinforce a culture of appreciation.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes>included in Townhall/ LIF</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_30">
+    <Category>Group Meet</Category>
+    <Phase>PRE</Phase>
+    <Activity>Top Talent Lunch</Activity>
+    <Outcome>Recognize high performers and future leaders; foster two-way dialogue.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_31">
+    <Category>Group Meet</Category>
+    <Phase>PRE</Phase>
+    <Activity>Women in Tech/ DE&amp;I</Activity>
+    <Outcome>To celebrate and reinforce EY GDS's commitment to diversity, equity, and inclusion, and to highlight the impact of women and underrepresented groups in shaping the future of tech.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_32">
+    <Category>Group Meet</Category>
+    <Phase>PRE</Phase>
+    <Activity>Leader in Focus</Activity>
+    <Outcome>Humanize leadership, enable personal storytelling, and reinforce vision.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes>for external client, case to case basis depending on duration</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_33">
+    <Category>Group Meet</Category>
+    <Phase>DURING</Phase>
+    <Activity>1:1s</Activity>
+    <Outcome>Enable meaningful connections, trust-building, and deeper alignment.</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>Can be done in office. If lacking time, consider doing during breakfast, etc.</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_34">
+    <Category>Group Meet</Category>
+    <Phase>DURING</Phase>
+    <Activity>Workshops</Activity>
+    <Outcome>To drive engagement and learning through focused, interactive sessions that enable knowledge-sharing, skill-building, and co-creation of ideas.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_35">
+    <Category>Group Meet</Category>
+    <Phase>DURING</Phase>
+    <Activity>Candidate interview</Activity>
+    <Outcome>To provide visibility into the talent pipeline, hiring quality, and recruitment strategy, showcasing how EY GDS PH attracts and develops high-caliber candidates aligned with business needs.</Outcome>
+    <PresentationOwner>Member Firm</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_36">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Group Photo Taking</Activity>
+    <Outcome>Capture and commemorate the visit; visual proof of connection.</Outcome>
+    <PresentationOwner>Visit Host / Visit Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_37">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Guestbook signing</Activity>
+    <Outcome>Personalize the experience and document shared milestones.</Outcome>
+    <PresentationOwner>Visit Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_38">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Welcome in Office</Activity>
+    <Outcome>Create a warm, professional first impression.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes>welcome signage/ banners</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_39">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Welcome in Office - lobby</Activity>
+    <Outcome>Create a warm, professional first impression.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes>special arrangement</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_40">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>EY GDS PH Merch</Activity>
+    <Outcome>Offer memorable, branded tokens that reflect culture and pride.</Outcome>
+    <PresentationOwner>Visit Team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_41">
+    <Category>Experience</Category>
+    <Phase>During</Phase>
+    <Activity>Dedicated Elevator</Activity>
+    <Outcome>To ensure a seamless and efficient visit experience for guests by providing convenience, security, and ease of movement within the location.</Outcome>
+    <PresentationOwner>Visit team</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_42">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Team Lunch/Dinners - outside office</Activity>
+    <Outcome>Foster relationship-building in a relaxed setting.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_43">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>PH location testimonials</Activity>
+    <Outcome>To amplify the voice of our people by sharing authentic stories and experiences that showcase EY GDS PH as a great place to grow, lead, and make an impact.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_44">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>CR event</Activity>
+    <Outcome>Showcase our commitment to social impact and responsible business.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_45">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Media event</Activity>
+    <Outcome>To strengthen EY GDS's brand presence in the Philippines by sharing key messages, milestones, and contributions to the industry and community with external stakeholders.</Outcome>
+    <PresentationOwner>BMC</PresentationOwner>
+    <ContentOwner>BMC / Visit Host</ContentOwner>
+    <Notes>Client: Case to case basis, depends on approval of client and GCSP</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_46">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>City Tour</Activity>
+    <Outcome>Celebrate the local culture and deepen contextual understanding.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_47">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Golf/ Other Recreational Activities</Activity>
+    <Outcome>To create space for informal engagement, relationship-building, and well-being, reinforcing EY's culture of balance and connection beyond the workplace.</Outcome>
+    <PresentationOwner>PPED/ Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_48">
+    <Category>Experience</Category>
+    <Phase>During</Phase>
+    <Activity>Pasalubong Shopping</Activity>
+    <Outcome>In Office Pasalubong Shopping (i.e. Pearl Lady)</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>case to case basis</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_49">
+    <Category>Experience</Category>
+    <Phase>DURING</Phase>
+    <Activity>Welcome note in hotel room</Activity>
+    <Outcome>Show thoughtfulness and high-touch hospitality.</Outcome>
+    <PresentationOwner>Visit Team</PresentationOwner>
+    <ContentOwner>Visit Team</ContentOwner>
+    <Notes>Client: Case to case basis, depends if we'll arrange hotel; If  there is a new GLT first time visit</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_50">
+    <Category>Collaboration</Category>
+    <Phase>DURING</Phase>
+    <Activity>Training / L&amp;D related</Activity>
+    <Outcome>Emphasize investment in upskilling, career growth, and future skills.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner>Visit Host</ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_51">
+    <Category>Collaboration</Category>
+    <Phase>DURING</Phase>
+    <Activity>Team Outing</Activity>
+    <Outcome>Promote camaraderie and cultural immersion beyond the office.</Outcome>
+    <PresentationOwner>Visit Host</PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Not Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Not Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_52">
+    <Category>Post Event</Category>
+    <Phase>POST</Phase>
+    <Activity>[Post visit] Thank you email</Activity>
+    <Outcome>Express gratitude, highlight impact, and reinforce commitment.</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_53">
+    <Category>Post Event</Category>
+    <Phase>POST</Phase>
+    <Activity>[Post visit] newsletter (internal GDS PH)</Activity>
+    <Outcome>Share visit highlights and boost team pride and visibility.</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>For client T1.1: Leaders only</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_54">
+    <Category>Post Event</Category>
+    <Phase>POST</Phase>
+    <Activity>[Post visit] LinkedIn post</Activity>
+    <Outcome>Strengthen brand reputation and amplify achievements externally.</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Not Applicable</T>
+    <T name="tier_1_1">Not Applicable</T>
+    <T name="tier_1_2">Not Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Not Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_55">
+    <Category>Post Event</Category>
+    <Phase>POST</Phase>
+    <Activity>[Post visit] post mortem</Activity>
+    <Outcome>Reflect on what worked and identify improvements for future visits.</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes>For client T1.1: Leaders only</Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Not Applicable</T>
+    <T name="tier_3_2">Not Applicable</T>
+    </Tiers>
+  </Record>
+  <Record id="rec_1757220392586_56">
+    <Category>Post Event</Category>
+    <Phase>POST</Phase>
+    <Activity>[Post visit] Action items</Activity>
+    <Outcome>Drive follow-through, accountability, and momentum post-visit.</Outcome>
+    <PresentationOwner></PresentationOwner>
+    <ContentOwner></ContentOwner>
+    <Notes></Notes>
+    <Links>
+    </Links>
+    <Tiers>
+    <T name="tier_1">Applicable</T>
+    <T name="tier_1_1">Applicable</T>
+    <T name="tier_1_2">Applicable</T>
+    <T name="tier_2">Applicable</T>
+    <T name="tier_2_1">Applicable</T>
+    <T name="tier_3">Applicable</T>
+    <T name="tier_3_1">Applicable</T>
+    <T name="tier_3_2">Applicable</T>
+    </Tiers>
+  </Record>
 </Records>
