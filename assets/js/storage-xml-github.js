@@ -1,7 +1,7 @@
 // GitHub XML storage using Contents API directly from the browser
-const OWNER  = 'markcolobong';
-const REPO   = 'cnslegoblocks';
-const BRANCH = 'main';
+const OWNER     = 'markcolobong';
+const REPO      = 'cnslegoblocks';
+const BRANCH    = 'main';
 const FILE_PATH = 'data/records.xml';
 
 const RAW_URL      = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${FILE_PATH}`;
@@ -9,6 +9,7 @@ const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${F
 
 let GITHUB_TOKEN = null;
 
+/* ===== Utils ===== */
 function sanitizeToken(t){
   return (t||'').trim()
     .replace(/^[\"']+|[\"']+$/g,'')
@@ -16,7 +17,7 @@ function sanitizeToken(t){
     .replace(/[\u200B-\u200D\uFEFF]/g,'');
 }
 
-async function ghFetch(url, init={}){
+async function ghFetch(url, init = {}){
   const headers = Object.assign({
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28'
@@ -25,7 +26,7 @@ async function ghFetch(url, init={}){
   const token = sanitizeToken(GITHUB_TOKEN || '');
   if (!token) return fetch(url, Object.assign({}, init, { headers }));
 
-  // Try token → Bearer → Basic (to maximize browser compatibility)
+  // Try token → Bearer → Basic (largest compat)
   let res = await fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: `token ${token}` }) }));
   if (res.status !== 401) return res;
 
@@ -35,108 +36,9 @@ async function ghFetch(url, init={}){
   return fetch(url, Object.assign({}, init, { headers: Object.assign({}, headers, { Authorization: 'Basic ' + btoa('x:' + token) }) }));
 }
 
-var XmlGitHubStorage = {
-  setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
- hasToken(){ 
-  const t = sanitizeToken(GITHUB_TOKEN || '');
-  return t.length > 0;
-},
-
-  async load(){
-    try{
-      if (GITHUB_TOKEN) {
-        const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache: 'no-store' });
-        if (res.status === 404) return [];
-        if (!res.ok) return [];
-        const json = await res.json();
-        const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
-        return parseXmlToRecords(xmlText);
-      }
-      // Public read fallback (works for public repos)
-      const res = await fetch(RAW_URL, { cache: 'no-store' });
-      if(!res.ok) return [];
-      const text = await res.text();
-      return parseXmlToRecords(text);
-    }catch{
-      return [];
-    }
-  },
-
-  async upsertOne(record){
-    const all = await this.load();
-    const idx = all.findIndex(r => r.id === record.id);
-    if (idx >= 0) all[idx] = record; else all.push(record);
-    await saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
-  },
-
-  async replaceAll(records){
-    await saveAllToGitHub(records, 'Replace all records from Lego Settings UI');
-  },
-
-  async deleteOne(id){
-    const all = await this.load();
-    const next = all.filter(r => r.id !== id);
-    await saveAllToGitHub(next, 'Delete record from Lego Settings UI');
-  }
-};
-
-/* ===== Helpers ===== */
-async function getCurrentSha(){
-  const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache: 'no-store' });
-  if (res.status === 200){
-    const meta = await res.json();
-    return meta.sha || null;
-  }
-  if (res.status === 404) return null; // file doesn't exist yet
-  const t = await res.text();
-  throw new Error('Failed reading file metadata: ' + t);
-}
-
-async function saveAllToGitHub(records, message){
-  if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
-
-  const xml = buildXml(records);
-  const content = base64EncodeUtf8(xml);
-
-  let sha = await getCurrentSha(); // always get latest SHA
-
-  async function put(shaToUse){
-    return ghFetch(CONTENTS_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: message || 'Update data/records.xml',
-        content,
-        sha: shaToUse || undefined, // omit to create file
-        branch: BRANCH
-      })
-    });
-  }
-
- // First attempt
-let res = await put(sha);
-
-// Retry on SHA mismatch / conflict
-if (!res.ok) {
-  let errBody; try { errBody = await res.json(); } catch { errBody = {}; }
-  const msg = (errBody && errBody.message) ? String(errBody.message) : '';
-  const isShaMismatch = res.status === 409 || res.status === 422 || /does not match/i.test(msg) || /sha/i.test(msg);
-
-  if (isShaMismatch) {
-    // refresh sha and retry once
-    sha = await getCurrentSha();
-    res = await put(sha);
-
-    if (!res.ok) {
-      // tiny backoff + re-read once more (second & final retry)
-      await new Promise(r => setTimeout(r, 200));
-      sha = await getCurrentSha();
-      res = await put(sha);
-    }
-  } else {
-    throw new Error(msg || ('GitHub save failed ('+res.status+')'));
-  }
-}
+function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
+function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
+function decodeBase64Utf8(b64){ try { return decodeURIComponent(escape(atob(b64))); } catch { return ''; } }
 
 /* ===== XML <-> JS ===== */
 function parseXmlToRecords(xmlText){
@@ -171,14 +73,14 @@ function parseXmlToRecords(xmlText){
       notes: text('Notes'),
       links,
       tiers: {
-        tier_1:  tier('tier_1'),
-        tier_1_1:tier('tier_1_1'),
-        tier_1_2:tier('tier_1_2'),
-        tier_2:  tier('tier_2'),
-        tier_2_1:tier('tier_2_1'),
-        tier_3:  tier('tier_3'),
-        tier_3_1:tier('tier_3_1'),
-        tier_3_2:tier('tier_3_2')
+        tier_1:   tier('tier_1'),
+        tier_1_1: tier('tier_1_1'),
+        tier_1_2: tier('tier_1_2'),
+        tier_2:   tier('tier_2'),
+        tier_2_1: tier('tier_2_1'),
+        tier_3:   tier('tier_3'),
+        tier_3_1: tier('tier_3_1'),
+        tier_3_2: tier('tier_3_2')
       }
     });
   });
@@ -206,14 +108,14 @@ function buildXml(records){
     out += `    <Notes>${esc(r.notes)}</Notes>\n`;
     out += `    <Links>\n${(r.links||[]).map(link).join('')}    </Links>\n`;
     out += `    <Tiers>\n`;
-    out += tier('tier_1',  r.tiers?.tier_1);
-    out += tier('tier_1_1',r.tiers?.tier_1_1);
-    out += tier('tier_1_2',r.tiers?.tier_1_2);
-    out += tier('tier_2',  r.tiers?.tier_2);
-    out += tier('tier_2_1',r.tiers?.tier_2_1);
-    out += tier('tier_3',  r.tiers?.tier_3);
-    out += tier('tier_3_1',r.tiers?.tier_3_1);
-    out += tier('tier_3_2',r.tiers?.tier_3_2);
+    out += tier('tier_1',   r.tiers?.tier_1);
+    out += tier('tier_1_1', r.tiers?.tier_1_1);
+    out += tier('tier_1_2', r.tiers?.tier_1_2);
+    out += tier('tier_2',   r.tiers?.tier_2);
+    out += tier('tier_2_1', r.tiers?.tier_2_1);
+    out += tier('tier_3',   r.tiers?.tier_3);
+    out += tier('tier_3_1', r.tiers?.tier_3_1);
+    out += tier('tier_3_2', r.tiers?.tier_3_2);
     out += `    </Tiers>\n`;
     out += `  </Record>\n`;
   }
@@ -221,11 +123,111 @@ function buildXml(records){
   return out;
 }
 
-function cssEscape(s){ return String(s ?? '').replace(/"/g, '\\"'); }
-function base64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
-function decodeBase64Utf8(b64){
-  try { return decodeURIComponent(escape(atob(b64))); } catch { return ''; }
+/* ===== GitHub helpers ===== */
+async function getCurrentSha(){
+  const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache:'no-store' });
+  if (res.status === 200){
+    const meta = await res.json();
+    return meta.sha || null;
+  }
+  if (res.status === 404) return null; // file doesn't exist yet
+  const t = await res.text();
+  throw new Error('Failed reading file metadata: ' + t);
 }
 
-if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
+/* ===== Save with SHA retry ===== */
+async function saveAllToGitHub(records, message){
+  if (!GITHUB_TOKEN) throw new Error('Not authorized: missing GitHub token for write');
+
+  const xml     = buildXml(records);
+  const content = base64EncodeUtf8(xml);
+
+  const MAX_TRIES = 4; // first try + 3 retries on SHA mismatch
+  for (let attempt = 1; attempt <= MAX_TRIES; attempt++){
+    // always fetch latest SHA right before PUT
+    const sha = await getCurrentSha();
+
+    const res = await ghFetch(CONTENTS_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message || 'Update data/records.xml',
+        content,
+        sha: sha || undefined, // omit to create file
+        branch: BRANCH
+      })
+    });
+
+    if (res.ok) return; // saved
+
+    // parse error to detect conflict
+    let msg = '';
+    try { msg = (await res.json())?.message || ''; }
+    catch { try { msg = await res.text(); } catch {} }
+
+    const isConflict = res.status === 409 || res.status === 422 || /does not match|sha/i.test(msg);
+    if (isConflict && attempt < MAX_TRIES){
+      await sleep(250 * attempt); // 250ms, 500ms, 750ms
+      continue;
+    }
+    throw new Error(msg || ('GitHub save failed ('+res.status+')'));
+  }
+}
+
+/* ===== Public API ===== */
+var XmlGitHubStorage = {
+  setToken(token){ GITHUB_TOKEN = sanitizeToken(token); },
+  hasToken(){ return !!GITHUB_TOKEN; },
+
+  async load(){
+    try{
+      if (GITHUB_TOKEN) {
+        const res = await ghFetch(`${CONTENTS_URL}?ref=${encodeURIComponent(BRANCH)}`, { method: 'GET', cache:'no-store' });
+        if (res.status === 404) return [];
+        if (!res.ok) return [];
+        const json = await res.json();
+        const xmlText = decodeBase64Utf8((json.content || '').replace(/\n/g,''));
+        return parseXmlToRecords(xmlText);
+      }
+      // Public read fallback (works for public repos)
+      const res = await fetch(RAW_URL, { cache: 'no-store' });
+      if(!res.ok) return [];
+      const text = await res.text();
+      return parseXmlToRecords(text);
+    }catch{
+      return [];
+    }
+  },
+
+  // Create or update (by id)
+  async upsertOne(record){
+    const all = await this.load();
+    const idx = all.findIndex(r => r.id === record.id);
+    if (idx >= 0) all[idx] = record; else all.push(record);
+    await saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
+  },
+
+  // STRICT targeted update by id (throws if not found)
+  async updateOneById(record){
+    if (!record?.id) throw new Error('Missing record id');
+    const all = await this.load();
+    const idx = all.findIndex(r => r.id === record.id);
+    if (idx === -1) throw new Error('Record not found: ' + record.id);
+    all[idx] = record;
+    await saveAllToGitHub(all, 'Update record ' + record.id + ' from Lego Settings UI');
+  },
+
+  async replaceAll(records){
+    await saveAllToGitHub(records, 'Replace all records from Lego Settings UI');
+  },
+
+  async deleteOne(id){
+    const all = await this.load();
+    const next = all.filter(r => r.id !== id);
+    await saveAllToGitHub(next, 'Delete record from Lego Settings UI');
+  }
+};
+
+if (typeof window !== 'undefined') window.XmlGitHubStorage = XmlGitHubStorage;
