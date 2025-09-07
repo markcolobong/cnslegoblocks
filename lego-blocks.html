@@ -550,7 +550,7 @@
   })();
   </script>
 
- <!-- ADD RECORD: Save -> optimistic append -> robust refresh; Add button always responsive -->
+<!-- ADD RECORD: Save -> write to XML -> instant local append (no 'Saving…') -> background refresh -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
@@ -568,69 +568,15 @@
 
   if (!addBtn || !overlay || !form) return;
 
-  // ---- helpers ----
+  // ---------- helpers ----------
   const val  = (id) => ($(id) ? $(id).value : '');
   const text = (id) => ($(id) ? $(id).value.trim() : '');
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const sanitize = (s) => String(s ?? '');
 
   function parseCountPill(){
     const m = (countPill?.textContent || '').match(/(\d+)/);
     return m ? parseInt(m[1], 10) : NaN;
-  }
-
-  function sanitize(s){ return String(s ?? ''); }
-
-  function optimisticAppendRow(rec){
-    // Create a lightweight row so the user sees it immediately.
-    const tb = document.querySelector('#dataTable tbody');
-    if (!tb) return;
-
-    const tr = document.createElement('tr');
-    tr.dataset.temp = 'true'; // marker until refresh replaces it
-    tr.dataset.id = rec.id || '';
-
-    function td(txt, cls){
-      const cell = document.createElement('td');
-      if (cls) cell.className = cls;
-      cell.textContent = sanitize(txt);
-      return cell;
-    }
-
-    tr.appendChild(td(rec.category, 'cat'));
-    tr.appendChild(td(rec.phase, 'phase'));
-    tr.appendChild(td(rec.activity, 'activity'));
-    tr.appendChild(td(rec.outcome, 'outcome'));
-    tr.appendChild(td(rec.tiers?.tier_1   ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_1_1 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_1_2 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_2   ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_2_1 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_3   ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_3_1 ?? '', 'tier-col'));
-    tr.appendChild(td(rec.tiers?.tier_3_2 ?? '', 'tier-col'));
-
-    const actions = document.createElement('td');
-    actions.className = 'actions';
-    // Keep it simple; real actions will appear after refresh renders
-    const badge = document.createElement('span');
-    badge.className = 'muted';
-    badge.textContent = 'Saving…';
-    actions.appendChild(badge);
-    tr.appendChild(actions);
-
-    tb.appendChild(tr);
-  }
-
-  async function robustRefresh(expectedCount){
-    // Try multiple passes to beat GitHub propagation/caching.
-    const delays = [0, 120, 260, 520, 1000, 1600]; // ms
-    for (let i = 0; i < delays.length; i++){
-      try { await window.LegoSettings?.refresh?.(); } catch {}
-      await sleep(delays[i]);
-      const cur = parseCountPill();
-      if (!isNaN(expectedCount) && cur === expectedCount) return true;
-    }
-    return false;
   }
 
   function nextUniqueId(all){
@@ -658,7 +604,54 @@
     return candidate;
   }
 
-  // ---- modal open/close (and make sure overlay never blocks clicks after close) ----
+  // Create a normal-looking row (no “Saving…” badge)
+  function appendRowLocal(rec){
+    const tb = document.querySelector('#dataTable tbody');
+    if (!tb) return;
+
+    const tr = document.createElement('tr');
+    tr.dataset.local = 'true';           // marker until refresh replaces it
+    tr.dataset.id = rec.id || '';
+
+    function td(txt, cls){
+      const cell = document.createElement('td');
+      if (cls) cell.className = cls;
+      cell.textContent = sanitize(txt);
+      return cell;
+    }
+
+    tr.appendChild(td(rec.category, 'cat'));
+    tr.appendChild(td(rec.phase, 'phase'));
+    tr.appendChild(td(rec.activity, 'activity'));
+    tr.appendChild(td(rec.outcome, 'outcome'));
+    tr.appendChild(td(rec.tiers?.tier_1   ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_1_1 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_1_2 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_2   ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_2_1 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_3   ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_3_1 ?? '', 'tier-col'));
+    tr.appendChild(td(rec.tiers?.tier_3_2 ?? '', 'tier-col'));
+
+    // Actions cell (left blank — your normal refresh will render the real actions)
+    tr.appendChild(td('', 'actions'));
+
+    tb.appendChild(tr);
+  }
+
+  async function backgroundReconcile(expectedCount){
+    // Refresh a few times with backoff to swap in the proper row/actions as soon as GitHub serves the update
+    const delays = [120, 260, 520, 1000, 1600];
+    for (let i = 0; i < delays.length; i++){
+      try { await window.LegoSettings?.refresh?.(); } catch {}
+      await sleep(delays[i]);
+      const cur = parseCountPill();
+      if (!isNaN(expectedCount) && cur === expectedCount) return true;
+    }
+    return false;
+  }
+
+  // ---------- modal open/close ----------
   function openAddModal(){
     try { form.reset(); } catch {}
     if (linksBox) linksBox.innerHTML = '';
@@ -668,26 +661,24 @@
     if (delBtn) delBtn.style.display = 'none';
     if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Save'; }
     overlay.style.pointerEvents = 'auto';
-    overlay.setAttribute('aria-hidden','false'); // CSS centers and shows
+    overlay.setAttribute('aria-hidden','false'); // CSS centers it
     const first = form.querySelector('input,select,textarea');
     first && first.focus();
   }
   function closeModal(){
     overlay.setAttribute('aria-hidden','true');
-    overlay.style.pointerEvents = 'none';  // ensure overlay can't trap clicks while hiding
-    // clear after a moment (so future opens use stylesheet defaults)
-    setTimeout(()=>{ overlay.style.pointerEvents = ''; }, 200);
+    // ensure overlay can't trap clicks when hidden
+    overlay.style.pointerEvents = 'none';
+    setTimeout(()=>{ overlay.style.pointerEvents=''; }, 200);
     delete form.dataset.mode;
   }
 
-  // ---- bind "+ Add record" robustly ----
+  // ---------- bind "+ Add record" (bullet-proof) ----------
   function bindAddButton(){
-    // direct handler
     addBtn.setAttribute('type','button');
     addBtn.removeAttribute('disabled');
     addBtn.onclick = function(e){ e.preventDefault(); e.stopImmediatePropagation(); openAddModal(); };
 
-    // capture-phase fallbacks to beat any other listeners swallowing the event
     function captureOpen(e){
       const t = e.target && e.target.closest ? e.target.closest('#openAddBtn') : null;
       if (!t) return;
@@ -695,7 +686,6 @@
       e.stopImmediatePropagation();
       openAddModal();
     }
-    // register only once (idempotent guards)
     if (!document.__legoAddCaptureBound){
       document.addEventListener('pointerdown', captureOpen, true);
       document.addEventListener('click',       captureOpen, true);
@@ -704,7 +694,6 @@
   }
   bindAddButton();
 
-  // Close via overlay click, button, or ESC
   overlay.addEventListener('click', function(e){
     if (!e.target.closest('.modal')) closeModal();
   });
@@ -715,13 +704,13 @@
     if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') closeModal();
   });
 
-  // ---- ADD-ONLY Save: optimistic append + upsertOne + robust refresh ----
+  // ---------- ADD-ONLY Save: write to XML, then instant local append, then reconcile ----------
   if (!form.dataset.addOnlyBound){
     form.dataset.addOnlyBound = 'true';
 
     form.addEventListener('submit', async function onSubmitAdd(e){
       const isCreate = (form.dataset.mode === 'create' && (!idInput || !idInput.value));
-      if (!isCreate) return; // edit path is handled elsewhere
+      if (!isCreate) return; // your EDIT path handles edits
 
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -737,7 +726,7 @@
 
       const beforeCount = parseCountPill();
 
-      // Gather user inputs (no defaults injected)
+      // Build from user inputs
       const record = {
         id: '',
         category: val('category'),
@@ -763,7 +752,7 @@
         }
       };
 
-      // Required fields
+      // Requireds
       if (!record.category || !record.phase || !record.activity || !record.outcome){
         alert('Please complete Category, Phase, Activity, and Outcome.');
         return;
@@ -773,30 +762,30 @@
       if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
 
       try{
-        // Generate id from current tail, then UPSERT (append if new)
+        // Generate id (append pattern) and write to XML first
         const all = await XmlGitHubStorage.load();
         record.id = nextUniqueId(all);
-
-        // Optimistic row so it appears instantly
-        optimisticAppendRow(record);
-        // Increment pill immediately
-        if (!isNaN(beforeCount) && countPill) countPill.textContent = `${beforeCount + 1} records`;
-
-        // Persist to XML
         await XmlGitHubStorage.upsertOne(record);
 
-        // Close modal ASAP to avoid overlay quirks
+        // Close modal immediately (UX)
         closeModal();
 
-        // Try to reflect authoritative table view quickly
-        const expected = isNaN(beforeCount) ? NaN : (beforeCount + 1);
-        const ok = await robustRefresh(expected);
+        // Instantly show in UI (no status text)
+        appendRowLocal(record);
 
-        // Even if refresh is still catching up, the optimistic row is already visible.
-        // Ensure button stays responsive after any path:
+        // Update pill immediately
+        const expected = isNaN(beforeCount) ? NaN : (beforeCount + 1);
+        if (!isNaN(expected) && countPill) countPill.textContent = `${expected} records`;
+
+        // Background reconcile to swap in the fully-rendered row (actions etc.)
+        await backgroundReconcile(expected);
+
+        // Make sure the next click is Add mode again, and button stays responsive
+        if (idInput) idInput.value = '';
+        if (delBtn)  delBtn.style.display = 'none';
+        if (modalTitle) modalTitle.textContent = 'Add Record';
         bindAddButton();
 
-        // Reset button label
         if (submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Save'; }
       }catch(err){
         console.error(err);
@@ -807,9 +796,6 @@
   }
 })();
 </script>
-
-
-
 
   <!-- CSS tip (your theme likely already has this):
        .modal-overlay[aria-hidden="true"] { display:none; }
@@ -881,6 +867,7 @@
 
 </body>
 </html>
+
 
 
 
