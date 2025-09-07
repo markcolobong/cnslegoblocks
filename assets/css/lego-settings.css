@@ -199,3 +199,7 @@ td.tier{width:3.25%; text-align:center; white-space:normal; overflow:visible; te
 /* Active menu highlight */
 .menu > li > a.active{ color:var(--brand); border-bottom:2px solid var(--brand); padding-bottom:4px; }
 .submenu a.active{ background:rgba(37,99,235,.08); color:var(--brand); border-radius:8px; }
+
+.modal-overlay[aria-hidden="true"] { display: none; }
+.modal-overlay.open { display: block; } /* or flex, depending on your layout */
+
