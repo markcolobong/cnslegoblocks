@@ -682,14 +682,15 @@ if (actionsCell){
 
   // Build a single TR that matches your table’s look & feel.
 
-  <script>
+ <script>
 (function(){
   const $  = (id)=>document.getElementById(id);
   const q  = (sel, el=document)=>el.querySelector(sel);
   const qa = (sel, el=document)=>Array.from(el.querySelectorAll(sel));
   const S  = (v)=>String(v ?? '');
 
-  // ✅ FIXED: no stray `};`, and action cell normalization is inside the right scope.
+  // Build a single TR that matches your table’s look & feel.
+  // ✅ Fixed: no stray `};` — all braces balanced.
   function buildRow(rec, templateRow){
     let tr;
     if (templateRow){
@@ -729,7 +730,7 @@ if (actionsCell){
       setTier(10, rec.tiers?.tier_3_1);
       setTier(11, rec.tiers?.tier_3_2);
 
-      // normalize actions so View/Delete always target the new id
+      // normalize actions so View/Delete target the new id
       const actionsCell = tr.querySelector('td.actions') || tr.lastElementChild;
       if (actionsCell){
         actionsCell.querySelectorAll('a,button').forEach(el=>{
@@ -746,9 +747,10 @@ if (actionsCell){
         });
       }
     } else {
-      // Fallback when table was empty
+      // Fallback when the table was empty
       tr = document.createElement('tr');
       tr.dataset.id = rec.id;
+
       const td = (t, cls)=>{ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent=S(t); return el; };
       const mk = (v)=>{ const s=document.createElement('span'); s.className='pill'; s.setAttribute('data-value',S(v)); s.textContent=S(v); return s; };
 
@@ -770,12 +772,15 @@ if (actionsCell){
       `;
       tr.appendChild(actions);
     }
+
     return tr;
   }
 
-  // (the rest of this script block stays as you have it)
+  // expose if you need it elsewhere in this block scope
+  window.__lego_buildRow = buildRow;
 })();
 </script>
+
 
   
 
@@ -918,6 +923,7 @@ if (actionsCell){
   
 </body>
 </html>
+
 
 
 
