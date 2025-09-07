@@ -464,8 +464,8 @@
   })();
   </script>
 
-  <!-- Add Record glue: open modal, save/delete via XmlGitHubStorage -->
-  <!-- Add Record glue: open modal, save/delete via XmlGitHubStorage (robust open/close) -->
+<!-- Add Record glue: open modal, save/delete via XmlGitHubStorage (robust open/close) -->
+<!-- Add Record glue: open modal, save/delete via XmlGitHubStorage (robust) -->
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
@@ -476,51 +476,67 @@
   const form     = $('recordForm');
   const idInput  = $('recordId');
 
-  // Helper: app unlocked & token wired
-  function appReady(){
-    const unlocked = document.documentElement.getAttribute('data-auth') === 'unlocked';
-    const hasToken = !!(window.XmlGitHubStorage && XmlGitHubStorage.hasToken && XmlGitHubStorage.hasToken());
-    return unlocked && hasToken;
+  // ---- helpers -------------------------------------------------------------
+  function hasToken(){
+    return !!(window.XmlGitHubStorage && XmlGitHubStorage.hasToken && XmlGitHubStorage.hasToken());
   }
+  function appUnlocked(){
+    return document.documentElement.getAttribute('data-auth') === 'unlocked';
+  }
+  function appReady(){ return appUnlocked() && hasToken(); }
 
-  // Make the overlay visible regardless of CSS strategy
-  function showOverlay(){
-    if (!overlay) return;
-    overlay.style.display = 'block';            // force visible
+  function forceShowOverlay(){
+    if (!overlay) { console.error('[add] #modalOverlay not found'); return; }
     overlay.setAttribute('aria-hidden','false');
-    overlay.classList.add('open');              // if CSS uses .open
+    overlay.classList.add('open');
+    // defeat any CSS that might keep it hidden
+    overlay.style.removeProperty('visibility');
+    overlay.style.removeProperty('opacity');
+    overlay.style.removeProperty('display');
+    overlay.style.setProperty('display','flex','important'); // modal usually uses flex
   }
-  function hideOverlay(){
+  function forceHideOverlay(){
     if (!overlay) return;
-    overlay.style.display = 'none';
     overlay.setAttribute('aria-hidden','true');
     overlay.classList.remove('open');
+    overlay.style.setProperty('display','none','important');
   }
 
   function openModalForCreate(){
-    if (!overlay || !form) return;
+    if (!form || !overlay){ alert('Modal not found in DOM.'); return; }
     form.reset();
     if (idInput) idInput.value = '';
     const delBtn = $('editDeleteBtn');
     if (delBtn) delBtn.style.display = 'none';
     const titleEl = $('modalTitle');
     if (titleEl) titleEl.textContent = 'Add Record';
-    showOverlay();
-    // focus first required field
+    forceShowOverlay();
     $('category')?.focus();
   }
 
-  // Ensure Add button is enabled when login succeeds
-  function syncAddBtnEnabled(){
-    if (!addBtn) return;
-    addBtn.disabled = !appReady();
-  }
-  // Kick once now; most of the time login script also calls something similar
-  syncAddBtnEnabled();
-  // And keep it in sync (lightweight)
-  const addBtnTimer = setInterval(syncAddBtnEnabled, 400);
+  // Expose for quick console testing:  window.openAddModal()
+  window.openAddModal = openModalForCreate;
 
-  // Open modal
+  function syncAddBtn(){
+    if (!addBtn) return;
+    const shouldEnable = appReady();
+    addBtn.disabled = !shouldEnable;
+    // helpful console hint once after unlock
+    if (shouldEnable && !syncAddBtn._loggedOnce){
+      console.log('[add] Add button enabled (auth unlocked + token present)');
+      syncAddBtn._loggedOnce = true;
+    }
+  }
+
+  // Keep Add button in sync with auth state + token
+  syncAddBtn();
+  // 1) watch data-auth attribute changes
+  const authObs = new MutationObserver(syncAddBtn);
+  authObs.observe(document.documentElement, { attributes:true, attributeFilter:['data-auth'] });
+  // 2) light interval in case XmlGitHubStorage token changes later
+  const tick = setInterval(syncAddBtn, 500);
+
+  // ---- open/close wiring ---------------------------------------------------
   addBtn?.addEventListener('click', (e)=>{
     e.preventDefault();
     if (!appReady()){
@@ -530,12 +546,11 @@
     openModalForCreate();
   });
 
-  // Close actions
-  closeBtn?.addEventListener('click', (e)=>{ e.preventDefault(); hideOverlay(); });
-  overlay?.addEventListener('click', (e)=>{ if (e.target === overlay) hideOverlay(); });
-  document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') hideOverlay(); });
+  closeBtn?.addEventListener('click', (e)=>{ e.preventDefault(); forceHideOverlay(); });
+  overlay?.addEventListener('click', (e)=>{ if (e.target === overlay) forceHideOverlay(); });
+  document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') forceHideOverlay(); });
 
-  // ---- Save handler (unchanged except for close logic) ----
+  // ---- SAVE (unchanged except for robust close + id generation) ------------
   if (form && !form.dataset.boundSave){
     form.dataset.boundSave = 'true';
 
@@ -548,7 +563,7 @@
         alert('Write disabled: data adapter not loaded (XmlGitHubStorage).');
         return;
       }
-      if (!XmlGitHubStorage.hasToken || !XmlGitHubStorage.hasToken()){
+      if (!hasToken()){
         alert('Write disabled: please login with a valid GitHub token first.');
         return;
       }
@@ -591,7 +606,7 @@
         await XmlGitHubStorage.upsertOne(record);
         if (idInput) idInput.value = record.id;
         try{ if (window.LegoSettings?.refresh) await LegoSettings.refresh(); }catch{}
-        hideOverlay();
+        forceHideOverlay();
       }catch(err){
         console.error(err);
         alert('Save failed: ' + (err?.message || err));
@@ -600,10 +615,10 @@
       }
     });
 
-    // ---- Delete handler (unchanged except for close logic) ----
+    // ---- DELETE (unchanged except for robust close) -------------------------
     const delBtn = $('editDeleteBtn');
     delBtn?.addEventListener('click', async ()=>{
-      if (!XmlGitHubStorage.hasToken || !XmlGitHubStorage.hasToken()){
+      if (!hasToken()){
         alert('Write disabled: please login with a valid GitHub token first.');
         return;
       }
@@ -616,7 +631,7 @@
         try{ if (window.LegoSettings?.refresh) await LegoSettings.refresh(); }catch{}
         form.reset();
         if (idInput) idInput.value = '';
-        hideOverlay();
+        forceHideOverlay();
       }catch(err){
         console.error(err);
         alert('Delete failed: ' + (err?.message || err));
@@ -624,11 +639,10 @@
     });
   }
 
-  // Clean up the interval when page unloads
-  window.addEventListener('beforeunload', ()=> clearInterval(addBtnTimer));
+  // cleanup
+  window.addEventListener('beforeunload', ()=> clearInterval(tick));
 })();
 </script>
-
 
   <!-- CSS note for modal visibility:
        .modal-overlay[aria-hidden="true"] { display:none; }
@@ -636,4 +650,5 @@
   -->
 </body>
 </html>
+
 
