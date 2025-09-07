@@ -701,5 +701,93 @@
        .modal-overlay[aria-hidden="true"] { display:none; }
        .modal-overlay[aria-hidden="false"] { display:block; } /* or flex */
   -->
+
+  <!-- 🔧 Hard-bind: "+ Add record" must open the modal -->
+<script>
+(function(){
+  function ensureAddOpener() {
+    var overlay  = document.getElementById('modalOverlay');
+    var form     = document.getElementById('recordForm');
+    var idInput  = document.getElementById('recordId');
+    var btn      = document.getElementById('openAddBtn');
+    var closeBtn = document.getElementById('closeModalBtn');
+
+    if (!overlay || !form || !btn) {
+      console.warn('[AddRecordPatch] Missing elements', {overlay:!!overlay, form:!!form, btn:!!btn});
+      return;
+    }
+
+    function openModal() {
+      try { form.reset(); } catch {}
+      if (idInput) idInput.value = '';             // CREATE mode
+      form.dataset.mode = 'create';                // mark add mode (doesn't touch your edit logic)
+      // force show regardless of CSS strategy
+      overlay.style.display = 'block';
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      // focus first control
+      var first = form.querySelector('input,select,textarea,button');
+      if (first) first.focus();
+    }
+
+    function closeModal() {
+      overlay.style.display = 'none';
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+      delete form.dataset.mode;
+    }
+
+    // Make sure the button is clickable
+    btn.setAttribute('type','button');
+    btn.removeAttribute('disabled');
+
+    // 🛡️ Capture earliest possible event to beat any blockers
+    function captureOpen(e){
+      var targetBtn = e.target.closest('#openAddBtn');
+      if (!targetBtn) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openModal();
+    }
+
+    // Use both pointerdown (earliest) and click as fallback, in capture phase
+    document.addEventListener('pointerdown', captureOpen, true);
+    document.addEventListener('click',       captureOpen, true);
+
+    // As an absolute fallback, also set onclick directly on the button
+    btn.onclick = function(e){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openModal();
+    };
+
+    // Close only when clicking **outside** the dialog
+    overlay.addEventListener('click', function(e){
+      if (!e.target.closest('.modal')) closeModal();
+    });
+
+    // Close button
+    closeBtn && closeBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      closeModal();
+    });
+
+    // ESC to close
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && overlay.getAttribute('aria-hidden') === 'false') {
+        closeModal();
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureAddOpener);
+  } else {
+    ensureAddOpener();
+  }
+})();
+</script>
+
 </body>
 </html>
+
