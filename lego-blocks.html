@@ -387,7 +387,7 @@
         const all = await this.load();
         const idx = all.findIndex(r => r.id === record.id);
         if (idx >= 0) all[idx] = record; else all.push(record);
-        await saveAllToGitHub(all, 'Upsert record from Lego Settings UI');
+        await saveAllToGitHub(records, 'Upsert record from Lego Settings UI');
       },
       async updateOneById(record){
         if (!record?.id) throw new Error('Missing record id');
@@ -395,7 +395,7 @@
         const idx = all.findIndex(r => r.id === record.id);
         if (idx === -1) throw new Error('Record not found: ' + record.id);
         all[idx] = record;
-        await saveAllToGitHub(all, 'Update record ' + record.id + ' from Lego Settings UI');
+        await saveAllToGitHub(records, 'Update record ' + record.id + ' from Lego Settings UI');
       },
       async replaceAll(records){ await saveAllToGitHub(records, 'Replace all records from Lego Settings UI'); },
       async deleteOne(id){
@@ -862,6 +862,7 @@
 
 </body>
 </html>
+
 
 
 
